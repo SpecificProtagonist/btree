@@ -2,22 +2,31 @@
 #define B_TREE_HEADER
 
 #include <stdbool.h>
+#include <stdint.h>
 
-//TODO: proper type
-typedef void* btree;
+// For now everything is in RAM, may change later
+// Should a value be stored alongside the key? Can be added later
+// The key type must be known at compile type
+
+typedef
+#ifdef BT_KEY_TYPE
+    BT_KEY_TYPE
+#else
+    uint32_t
+#endif
+bt_key;
+
+typedef struct btree btree;
 
 btree* btree_new();
 
-// int should be sensible for key type,
-// Should a value be stored alongside the key? Can be added later
+void btree_insert(btree*, bt_key key);
 
-void btree_insert(btree*, int key);
+bool btree_contains(btree*, bt_key key);
 
-bool btree_contains(btree*, int key);
+void btree_traverse(btree*, void (*callback)(bt_key), bool reverse);
 
-void btree_traverse(btree*, void (*callback)(int), bool reverse);
-
-void btree_delete(btree*, int key);
+void btree_delete(btree*, bt_key key);
 
 void btree_free(btree*);
 

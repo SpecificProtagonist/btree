@@ -1,4 +1,5 @@
-OPT = -Wall -Wextra -pedantic-errors
+DEFINES = 
+OPT = $(DEFINES) -Wall -Wextra -pedantic-errors
 
 # make some better recipes when there are more files to worry about
 
