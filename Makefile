@@ -3,7 +3,7 @@ OPT = $(DEFINES) -Wall -Wextra -pedantic-errors
 
 # make some better recipes when there are more files to worry about
 
-build: src/test.c src/btree.h build/btree.o
+build: src/test.c src/btree.h src/btree-debug.h build/btree.o
 	@gcc $(OPT) $^ -o build/test
 	
 test: build

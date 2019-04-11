@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "btree.h"
 
 // store order as property of the btree or as compile time option?
@@ -8,20 +9,20 @@
 #endif
 #define MIN_CHILDREN ((MAX_CHILDREN+1)/2)
 
-typedef struct bt_node* node;
+typedef struct bt_node bt_node;
 struct bt_node {
-    uint8_t num_children;
+    uint8_t num_keys;
     bt_key keys[MAX_CHILDREN-1];
-    node* children[MAX_CHILDREN];
+    bt_node* children[MAX_CHILDREN];
 };
 
 typedef struct {
-    uint8_t num_children;
+    uint8_t num_keys;
     bt_key keys[MAX_CHILDREN-1];
 } bt_node_leaf;
 
 struct btree {
-   node root;
+   bt_node* root;
    int8_t height;
 };
 
@@ -39,3 +40,21 @@ void btree_delete(btree*, bt_key key);
 
 void btree_free(btree*);
 
+void debug_print(bt_node* node, int height, int max_height){
+    for(int i = 0; i < node->num_keys+1; i++){
+        if(height>0){
+            debug_print(node->children[i], height-1, height);
+        }
+        if(i<node->num_keys){
+            for(int s = max_height-height; s --> 0; printf("\t"));
+            printf("%d\n", node->keys[i]);
+        }
+    }
+}
+
+void btree_debug_print(btree* tree){
+    if(tree->root)
+        debug_print(tree->root, tree->height, tree->height);
+    else
+        puts("EMPTY");
+}
