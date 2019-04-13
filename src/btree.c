@@ -89,11 +89,11 @@ insert_result insert_into_leaf(bt_node_leaf* leaf, bt_key key){
         } else {
             median = leaf->keys[MIN_KEYS+1];
             // is this correct for both even and odd MAX_KEYS?
-            for(int i = index/2; i --> MIN_KEYS;)
-                right->keys[i-MIN_KEYS] = leaf->keys[i];
-            right->keys[index/2-MIN_KEYS] = key;
-            for(int i = MAX_KEYS; i --> index/2+1;)
-                right->keys[i-MIN_KEYS] = leaf->keys[i];
+            for(int i = index/2-1; i --> leaf->num_keys;)
+                right->keys[i-leaf->num_keys] = leaf->keys[i];
+            right->keys[index/2-leaf->num_keys-1] = key;
+            for(int i = MAX_KEYS; i --> index/2;)
+                right->keys[i-leaf->num_keys] = leaf->keys[i];
         }
         return (insert_result){median, (void*)right};
     }
@@ -123,6 +123,10 @@ insert_result child_split(bt_node* node, int child, insert_result split){
             for(int i = MAX_KEYS+1; i --> node->num_keys+1;)
                 right->children[i-node->num_keys] = node->children[i];
         } else if(child <= MIN_KEYS){ //key in left node
+            for(int i = MAX_KEYS; i --> node->num_keys;)
+                right->keys[i-node->num_keys] = node->keys[i];
+            for(int i = MAX_KEYS+1; i --> node->num_keys;)
+                right->children[i-node->num_keys] = node->children[i];
             median = node->keys[MIN_KEYS];
             for(int i = node->num_keys-1; i --> child;)
                 node->keys[i+1] = node->keys[i];
@@ -130,10 +134,6 @@ insert_result child_split(bt_node* node, int child, insert_result split){
                 node->children[i+1] = node->children[i];
             node->keys[child] = split.split_key;
             node->children[child+1] = split.new_node;
-            for(int i = MAX_KEYS; i --> node->num_keys;)
-                right->keys[i-node->num_keys] = node->keys[i];
-            for(int i = MAX_KEYS+1; i --> node->num_keys;)
-                right->children[i-node->num_keys] = node->children[i];
         } else { //key in right node
             median = node->keys[node->num_keys];
             for(int i = child; i --> node->num_keys+1;)
@@ -212,7 +212,7 @@ void btree_free(btree*);
 void debug_print(bt_node* node, int height, int max_height){
     for(int i = 0; i < node->num_keys+1; i++){
         if(height>0){
-            debug_print(node->children[i], height-1, height);
+            debug_print(node->children[i], height-1, max_height);
         }
         if(i<node->num_keys){
             for(int s = (max_height-height)*4; s --> 0; printf(" "));
