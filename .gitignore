@@ -1,4 +1,5 @@
 build/*
+.gdbinit
 compile_commands.json
 notes_insert
 *.swp

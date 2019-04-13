@@ -120,6 +120,7 @@ insert_result child_split(bt_node* node, int child, insert_result split){
             median = split.split_key;
             for(int i = MAX_KEYS; i --> node->num_keys;)
                 right->keys[i-node->num_keys] = node->keys[i];
+            right->children[0] = split.new_node;
             for(int i = MAX_KEYS+1; i --> node->num_keys+1;)
                 right->children[i-node->num_keys] = node->children[i];
         } else if(child <= MIN_KEYS){ //key in left node
@@ -207,16 +208,26 @@ void btree_traverse(btree*, void (*callback)(bt_key), bool reverse);
 
 void btree_delete(btree*, bt_key key);
 
-void btree_free(btree*);
+void free_node(bt_node *node, int height){
+    if(height>0)
+        for(int i=node->num_keys+1; i --> 0;)
+            free_node(node->children[i], height-1);
+    free(node);
+}
+
+void btree_free(btree *tree){
+    if(tree->root)
+        free_node(tree->root, tree->height);
+    free(tree);
+}
 
 void debug_print(bt_node* node, int height, int max_height){
     for(int i = 0; i < node->num_keys+1; i++){
-        if(height>0){
+        if(height>0)
             debug_print(node->children[i], height-1, max_height);
-        }
         if(i<node->num_keys){
             for(int s = (max_height-height)*4; s --> 0; printf(" "));
-            printf("%d\n", node->keys[i]);
+            printf("%x\n", node->keys[i]);
         }
     }
 }

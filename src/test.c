@@ -8,11 +8,13 @@ void test_random(int len, int attempts){
     while(attempts --> 0){
         btree *tree = btree_new();
 
+        puts("TEST:");
         bt_key *keys = calloc(sizeof(bt_key), len);
         for(int i=0; i < len; i++){
             bt_key key = rand()%100;
             btree_insert(tree, key);
             keys[i] = key;
+            printf("  %x\n", key);
         }
     
         for(int i=len; i --> 0;)
@@ -24,12 +26,14 @@ void test_random(int len, int attempts){
                 btree_debug_print(tree);
                 exit(1);
             }
+
+        btree_free(tree);
     }
 }
 
 void test_failcase(){
     btree *tree = btree_new();
-    bt_key keys[] = {34, 33, 35, 9, 1, 6, 3, 5, 4, 2};
+    bt_key keys[] = {0x5, 0x2, 0x7, 0x1, 0xB, 0x9, 0x3, 0xA, 0x6, 0x4, 0x8};
     for(unsigned long i=0; i < sizeof(keys)/sizeof(bt_key); i++){
         btree_insert(tree, keys[i]);
         btree_debug_print(tree);
@@ -41,8 +45,8 @@ int main(void){
     time_t t;
     srand((unsigned) time(&t));
 
-    test_random(10, 20);
-//    test_failcase();
+//    test_random(20, 10);
+    test_failcase();
 
     return 0;
 }
