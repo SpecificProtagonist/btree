@@ -6,7 +6,7 @@
 // 32 or so might be sensible if kept in RAM, 3 good for testing
 // Number of children is number of keys + 1
 #ifndef MAX_KEYS
-#define MAX_KEYS 3
+#define MAX_KEYS 4
 #endif
 #define MIN_KEYS (MAX_KEYS/2)
 
@@ -80,17 +80,17 @@ insert_result insert_into_leaf(bt_node_leaf* leaf, bt_key key){
             for(int i = MAX_KEYS; i --> leaf->num_keys;)
                 right->keys[i-leaf->num_keys] = leaf->keys[i];
         } else if(index/2 <= MIN_KEYS){
-            median = leaf->keys[MIN_KEYS];
+            median = leaf->keys[leaf->num_keys-1];
             for(int i = leaf->num_keys-1; i --> index/2;)
                 leaf->keys[i+1] = leaf->keys[i];
             leaf->keys[index/2] = key;
             for(int i = MAX_KEYS; i --> leaf->num_keys;)
                 right->keys[i-leaf->num_keys] = leaf->keys[i];
         } else {
-            median = leaf->keys[MIN_KEYS+1];
+            median = leaf->keys[leaf->num_keys];
             // is this correct for both even and odd MAX_KEYS?
-            for(int i = index/2-1; i --> leaf->num_keys;)
-                right->keys[i-leaf->num_keys] = leaf->keys[i];
+            for(int i = index/2; i --> leaf->num_keys+1;)
+                right->keys[i-leaf->num_keys-(MIN_KEYS+1)%2] = leaf->keys[i];
             right->keys[index/2-leaf->num_keys-1] = key;
             for(int i = MAX_KEYS; i --> index/2;)
                 right->keys[i-leaf->num_keys] = leaf->keys[i];
@@ -128,7 +128,7 @@ insert_result child_split(bt_node* node, int child, insert_result split){
                 right->keys[i-node->num_keys] = node->keys[i];
             for(int i = MAX_KEYS+1; i --> node->num_keys;)
                 right->children[i-node->num_keys] = node->children[i];
-            median = node->keys[MIN_KEYS];
+            median = node->keys[node->num_keys-1];
             for(int i = node->num_keys-1; i --> child;)
                 node->keys[i+1] = node->keys[i];
             for(int i = node->num_keys; i --> child+1;)
@@ -138,12 +138,15 @@ insert_result child_split(bt_node* node, int child, insert_result split){
         } else { //key in right node
             median = node->keys[node->num_keys];
             for(int i = child; i --> node->num_keys+1;)
-                right->keys[i-MIN_KEYS-1] = node->keys[i];
+                right->keys[i-node->num_keys-1] = node->keys[i];
             for(int i = child+1; i --> node->num_keys+1;)
-                right->keys[i-MIN_KEYS-1] = node->keys[i];
+                right->children[i-node->num_keys-1] = node->children[i];
             right->keys[child-node->num_keys-1] = split.split_key;
+            right->children[child-node->num_keys] = split.new_node;
             for(int i = MAX_KEYS; i --> child+1;)
-                right->keys[i-MIN_KEYS] = node->keys[i];
+                right->keys[i-node->num_keys] = node->keys[i];
+            for(int i = MAX_KEYS+1; i --> node->num_keys+2;)
+                right->children[i-node->num_keys-1] = node->children[i];
         }
         return (insert_result){median, right};
     }
