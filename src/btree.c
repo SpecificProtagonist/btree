@@ -177,7 +177,27 @@ bool btree_contains(btree* tree, bt_key key){
         return false;
 }
 
-void btree_traverse(btree*, void (*callback)(bt_key), bool reverse);
+void traverse(bt_node *node, void (*callback)(bt_key, void*), void* id, bool reverse, int height){
+    if(!reverse)
+        for(int i=0; i <= node->num_keys; i++){
+            if(height)
+                traverse(node->children[i], callback, id, reverse, height-1);
+            if(i<node->num_keys)
+                callback(node->keys[i], id);
+        }
+    else
+        for(int i=node->num_keys+1; i --> 0;){
+            if(height)
+                traverse(node->children[i], callback, id, reverse, height-1);
+            if(i<node->num_keys)
+                callback(node->keys[i], id);
+        }
+}
+
+void btree_traverse(btree* tree, void (*callback)(bt_key, void*), void* id, bool reverse){
+    if(tree->root)
+        traverse(tree->root, callback, id, reverse, tree->height);
+}
 
 void btree_delete(btree*, bt_key key);
 

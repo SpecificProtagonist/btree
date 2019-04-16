@@ -24,7 +24,9 @@ void btree_insert(btree*, bt_key key);
 
 bool btree_contains(btree*, bt_key key);
 
-void btree_traverse(btree*, void (*callback)(bt_key), bool reverse);
+// traverses tree, calling callback() with each element and id,
+// the later of which allows parallel calls from multiple threads
+void btree_traverse(btree*, void (*callback)(bt_key, void*), void* id, bool reverse);
 
 void btree_delete(btree*, bt_key key);
 
