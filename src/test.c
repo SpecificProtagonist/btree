@@ -5,23 +5,27 @@
 #include "btree-debug.h"
 
 void test_random(int len, int attempts){
-    while(attempts --> 0){
+    for(int a = 0; a < attempts; a++){
         btree *tree = btree_new();
 
-        puts("TEST:");
+        printf("TEST %d:\n", a);
         bt_key *keys = calloc(sizeof(bt_key), len);
         for(int i=0; i < len; i++){
-            bt_key key = rand()%100;
-            btree_insert(tree, key);
+            bt_key key = rand()%256;
+            printf("%x\n", key);
             keys[i] = key;
-            printf("  %x\n", key);
+        }
+        for(int i=0; i < len; i++){
+            btree_insert(tree, keys[i]);
+            printf("Inserted %x, ", keys[i]);
+            btree_debug_print(tree);
         }
     
         for(int i=len; i --> 0;)
             if(!btree_contains(tree, keys[i])){
                 puts("KEYS");
-                for(int j=len; j --> 0; printf("  %d\n", keys[j]));
-                printf("Missing: %d\n", keys[i]);
+                for(int j=len; j --> 0; printf("  %x\n", keys[j]));
+                printf("Missing: %x\n", keys[i]);
                 puts("TREE");
                 btree_debug_print(tree);
                 exit(1);
@@ -33,9 +37,13 @@ void test_random(int len, int attempts){
 
 void test_failcase(){
     btree *tree = btree_new();
-    bt_key keys[] = {0x5, 0x2, 0x7, 0x1, 0xB, 0x9, 0x3, 0xA, 0x6, 0x4, 0x8};
-    for(unsigned long i=0; i < sizeof(keys)/sizeof(bt_key); i++){
+    bt_key keys[] = {
+        0,
+    };
+    //for(unsigned long i=0; i < sizeof(keys)/sizeof(bt_key); i++){
+    for(unsigned long i = sizeof(keys)/sizeof(bt_key); i --> 0;){
         btree_insert(tree, keys[i]);
+        printf("Inserting %x, ", keys[i]);
         btree_debug_print(tree);
     }
 }
@@ -44,9 +52,10 @@ int main(void){
     
     time_t t;
     srand((unsigned) time(&t));
+//    srand(1);
 
-//    test_random(20, 10);
-    test_failcase();
+    test_random(176, 70);
+//    test_failcase();
 
     return 0;
 }

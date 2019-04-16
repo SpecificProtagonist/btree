@@ -6,13 +6,13 @@
 // 32 or so might be sensible if kept in RAM, 3 good for testing
 // Number of children is number of keys + 1
 #ifndef MAX_KEYS
-#define MAX_KEYS 4
+#define MAX_KEYS 3
 #endif
 #define MIN_KEYS (MAX_KEYS/2)
 
 typedef struct bt_node bt_node;
 struct bt_node {
-    uint8_t num_keys;
+    uint16_t num_keys;
     bt_key keys[MAX_KEYS];
     bt_node* children[MAX_KEYS+1];
 };
@@ -90,7 +90,7 @@ insert_result insert_into_leaf(bt_node_leaf* leaf, bt_key key){
             median = leaf->keys[leaf->num_keys];
             // is this correct for both even and odd MAX_KEYS?
             for(int i = index/2; i --> leaf->num_keys+1;)
-                right->keys[i-leaf->num_keys-(MIN_KEYS+1)%2] = leaf->keys[i];
+                right->keys[i-leaf->num_keys-1] = leaf->keys[i];
             right->keys[index/2-leaf->num_keys-1] = key;
             for(int i = MAX_KEYS; i --> index/2;)
                 right->keys[i-leaf->num_keys] = leaf->keys[i];
@@ -143,10 +143,10 @@ insert_result child_split(bt_node* node, int child, insert_result split){
                 right->children[i-node->num_keys-1] = node->children[i];
             right->keys[child-node->num_keys-1] = split.split_key;
             right->children[child-node->num_keys] = split.new_node;
-            for(int i = MAX_KEYS; i --> child+1;)
+            for(int i = MAX_KEYS; i --> child;)
                 right->keys[i-node->num_keys] = node->keys[i];
-            for(int i = MAX_KEYS+1; i --> node->num_keys+2;)
-                right->children[i-node->num_keys-1] = node->children[i];
+            for(int i = MAX_KEYS+1; i --> child+1;)
+                right->children[i-node->num_keys] = node->children[i];
         }
         return (insert_result){median, right};
     }
