@@ -55,118 +55,88 @@ typedef struct {
     bt_node* new_node;
 } insert_result;
 
-insert_result insert_into_leaf(bt_node_leaf* leaf, bt_key key){
-    int index = search_keys((void*)leaf, key);
-    if(index%2==1){
-        // key already present
+insert_result insert(bt_node *node, bt_key key, int height){
+    int index = search_keys((void*)node, key);
+    if(index%2){ // key already present
         return (insert_result){0};
-    } else if(leaf->num_keys < MAX_KEYS){ // space free
-        for(int i = leaf->num_keys; i --> index/2;)
-            leaf->keys[i+1] = leaf->keys[i];
-        leaf->keys[index/2] = key;
-        leaf->num_keys++;
+    }
+    bt_node *new_node;
+    int child = index/2;
+    if(height){
+        insert_result split = 
+            insert(node->children[child], key, height-1);
+        if(!split.new_node)
+            return (insert_result){0};
+        key = split.split_key;
+        new_node = split.new_node;
+    }
+    if(node->num_keys < MAX_KEYS){
+        // enough room, insert new child
+        for(int i = node->num_keys; i --> child;)
+            node->keys[i+1] = node->keys[i];
+        if(height) // height==0 means leave → no children
+            for(int i = node->num_keys; i > child; i--)
+                node->children[i+1] = node->children[i];
+        node->num_keys++;
+        node->keys[child] = key;
+        if(height)
+            node->children[child+1] = new_node;
         return (insert_result){0};
     } else { // node full → split node
-        bt_node_leaf *right = calloc(sizeof(bt_node_leaf), 1);
-        leaf->num_keys = MIN_KEYS + MAX_KEYS%2;
+        // don't allocate space for children if leaf
+        bt_node *right = calloc(
+                height?sizeof(bt_node):sizeof(bt_node_leaf), 1);
+        node->num_keys = MIN_KEYS + MAX_KEYS%2; 
         right->num_keys = MIN_KEYS;
         // if the key is less than the median, insert it into the old node
         // if greater insert into the new one
         // copy half of the keys into the right node
         // deleted from the first one as num_keys is lowered
         bt_key median;
-        if(index/2 == leaf->num_keys) {
+        if(child == node->num_keys){
+            //key in middle
             median = key;
-            for(int i = MAX_KEYS; i --> leaf->num_keys;)
-                right->keys[i-leaf->num_keys] = leaf->keys[i];
-        } else if(index/2 <= MIN_KEYS){
-            median = leaf->keys[leaf->num_keys-1];
-            for(int i = leaf->num_keys-1; i --> index/2;)
-                leaf->keys[i+1] = leaf->keys[i];
-            leaf->keys[index/2] = key;
-            for(int i = MAX_KEYS; i --> leaf->num_keys;)
-                right->keys[i-leaf->num_keys] = leaf->keys[i];
-        } else {
-            median = leaf->keys[leaf->num_keys];
-            // is this correct for both even and odd MAX_KEYS?
-            for(int i = index/2; i --> leaf->num_keys+1;)
-                right->keys[i-leaf->num_keys-1] = leaf->keys[i];
-            right->keys[index/2-leaf->num_keys-1] = key;
-            for(int i = MAX_KEYS; i --> index/2;)
-                right->keys[i-leaf->num_keys] = leaf->keys[i];
-        }
-        return (insert_result){median, (void*)right};
-    }
-}
-
-// perhaps combine with insert_into_leaf() and insert()?
-insert_result child_split(bt_node* node, int child, insert_result split){
-    if(node->num_keys < MAX_KEYS){
-        // enough room, insert new child
-        for(int i = node->num_keys; i --> child;)
-            node->keys[i+1] = node->keys[i];
-        for(int i = node->num_keys; i > child; i--)
-            node->children[i+1] = node->children[i];
-        node->num_keys++;
-        node->keys[child] = split.split_key;
-        node->children[child+1] = split.new_node;
-        return (insert_result){0};
-    } else { // split node
-        bt_node *right = calloc(sizeof(bt_node), 1);
-        node->num_keys = MIN_KEYS + MAX_KEYS%2;
-        right->num_keys = MIN_KEYS;
-        bt_key median;
-        if(child == node->num_keys){ //key in middle
-            median = split.split_key;
             for(int i = MAX_KEYS; i --> node->num_keys;)
                 right->keys[i-node->num_keys] = node->keys[i];
-            right->children[0] = split.new_node;
-            for(int i = MAX_KEYS+1; i --> node->num_keys+1;)
-                right->children[i-node->num_keys] = node->children[i];
-        } else if(child <= MIN_KEYS){ //key in left node
+            if(height)
+                right->children[0] = new_node;
+            if(height)
+                for(int i = MAX_KEYS+1; i --> node->num_keys+1;)
+                    right->children[i-node->num_keys] = node->children[i];
+        } else if(child <= MIN_KEYS){
+            //key in left node
             for(int i = MAX_KEYS; i --> node->num_keys;)
                 right->keys[i-node->num_keys] = node->keys[i];
-            for(int i = MAX_KEYS+1; i --> node->num_keys;)
-                right->children[i-node->num_keys] = node->children[i];
+            if(height)
+                for(int i = MAX_KEYS+1; i --> node->num_keys;)
+                    right->children[i-node->num_keys] = node->children[i];
             median = node->keys[node->num_keys-1];
             for(int i = node->num_keys-1; i --> child;)
                 node->keys[i+1] = node->keys[i];
-            for(int i = node->num_keys; i --> child+1;)
-                node->children[i+1] = node->children[i];
-            node->keys[child] = split.split_key;
-            node->children[child+1] = split.new_node;
-        } else { //key in right node
+            if(height)
+                for(int i = node->num_keys; i --> child+1;)
+                    node->children[i+1] = node->children[i];
+            node->keys[child] = key;
+            if(height)
+                node->children[child+1] = new_node;
+        } else {
+            //key in right node
             median = node->keys[node->num_keys];
             for(int i = child; i --> node->num_keys+1;)
                 right->keys[i-node->num_keys-1] = node->keys[i];
-            for(int i = child+1; i --> node->num_keys+1;)
-                right->children[i-node->num_keys-1] = node->children[i];
-            right->keys[child-node->num_keys-1] = split.split_key;
-            right->children[child-node->num_keys] = split.new_node;
+            if(height)
+                for(int i = child+1; i --> node->num_keys+1;)
+                    right->children[i-node->num_keys-1] = node->children[i];
+            right->keys[child-node->num_keys-1] = key;
+            if(height)
+                right->children[child-node->num_keys] = new_node;
             for(int i = MAX_KEYS; i --> child;)
                 right->keys[i-node->num_keys] = node->keys[i];
-            for(int i = MAX_KEYS+1; i --> child+1;)
-                right->children[i-node->num_keys] = node->children[i];
+            if(height)
+                for(int i = MAX_KEYS+1; i --> child+1;)
+                    right->children[i-node->num_keys] = node->children[i];
         }
         return (insert_result){median, right};
-    }
-}
-
-insert_result insert(bt_node* node, bt_key key, uint8_t height){
-    if(height==0){
-        return insert_into_leaf((void*)node, key);
-    } else {
-        int index = search_keys(node, key);
-        if(index%2==1){
-            return (insert_result){0}; // key already present
-        } else {
-            insert_result result 
-                = insert(node->children[index/2], key, height-1);
-            if(result.new_node)
-                return child_split(node, index/2, result);
-            else
-                return (insert_result){0};
-        }
     }
 }
 

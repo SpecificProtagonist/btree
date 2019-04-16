@@ -8,10 +8,10 @@ void test_random(int len, int attempts){
     for(int a = 0; a < attempts; a++){
         btree *tree = btree_new();
 
-        printf("TEST %d:\n", a);
+        printf("TEST KEYS%d:\n", a);
         bt_key *keys = calloc(sizeof(bt_key), len);
         for(int i=0; i < len; i++){
-            bt_key key = rand()%256;
+            bt_key key = rand()%0xfff;
             printf("%x\n", key);
             keys[i] = key;
         }
@@ -54,7 +54,7 @@ int main(void){
     srand((unsigned) time(&t));
 //    srand(1);
 
-    test_random(176, 70);
+    test_random(76, 70);
 //    test_failcase();
 
     return 0;
