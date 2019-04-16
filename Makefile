@@ -1,5 +1,5 @@
 DEFINES = 
-OPT = -g -Wall -Wextra -pedantic-errors $(addprefix -D,$(DEFINES))
+OPT = -g -Wall -Wextra -Wno-missing-field-initializers -pedantic-errors $(addprefix -D,$(DEFINES))
 
 # make some better recipes when there are more files to worry about
 

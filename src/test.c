@@ -10,11 +10,12 @@ struct mark_occurences {
     int count;
 };
 
-void callback(bt_key key, void *data){
+bt_value callback(bt_key key, bt_value value, void *data){
     struct mark_occurences *d = data;
     for(int i = d->count; i --> 0;)
         if(key == d->keys[i])
             d->occurences[i]++;
+    return value;
 }
 
 void test_random(int len, int attempts){
@@ -30,7 +31,7 @@ void test_random(int len, int attempts){
             keys[i] = key;
         }
         for(int i=0; i < len; i++){
-            btree_insert(tree, keys[i]);
+            btree_insert(tree, keys[i], NULL);
 //            printf("Inserted %x, ", keys[i]);
 //            btree_debug_print(tree);
         }
@@ -65,7 +66,7 @@ void test_failcase(){
     };
     //for(unsigned long i=0; i < sizeof(keys)/sizeof(bt_key); i++){
     for(unsigned long i = sizeof(keys)/sizeof(bt_key); i --> 0;){
-        btree_insert(tree, keys[i]);
+        btree_insert(tree, keys[i], NULL);
         printf("Inserting %x, ", keys[i]);
         btree_debug_print(tree);
     }
