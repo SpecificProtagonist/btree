@@ -11,8 +11,8 @@
 #define MIN_KEYS (MAX_KEYS/2)
 
 typedef struct {
-    bt_value value;
     bt_key key;
+    bt_value value;
 } bt_pair;
 
 typedef struct bt_node bt_node;
@@ -215,7 +215,19 @@ void btree_traverse(btree* tree,
         traverse(tree->root, callback, id, reverse, tree->height);
 }
 
-void btree_delete(btree*, bt_key key);
+bt_pair find_smallest(bt_node *node, int height){
+    if(!height)
+        return node->pairs[0];
+    else
+        return find_smallest(node->children[0], height-1);
+}
+
+bt_pair find_biggest(bt_node *node, int height){
+    if(!height)
+        return node->pairs[node->num_keys-1];
+    else
+        return find_smallest(node->children[node->num_keys], height-1);
+}
 
 void free_node(bt_node *node, int height){
     if(height>0)
@@ -230,13 +242,125 @@ void btree_free(btree *tree){
     free(tree);
 }
 
+void delete(bt_node *node, bt_key key, int height){
+    int index = search_keys(node, key);
+    if(!height){
+        if(!(index%2))
+            return;
+        for(int i = index/2; i < node->num_keys-1; i++)
+            node->pairs[i] = node->pairs[i+1];
+        node->num_keys--;
+        // parent will check if below min number of keys
+    } else {
+        int child = index/2;
+        if(!(index%2)){
+            delete(node->children[child], key, height-1);
+        } else if(child<node->num_keys && 
+                  node->children[child+1]->num_keys > 
+                  node->children[child]->num_keys){
+            // the smallest key in the right subtree works as seperator
+            child++;
+            bt_pair seperator = find_smallest(
+                        node->children[child], height-1);
+            node->pairs[index/2] = seperator;
+            delete(node->children[child], seperator.key, height-1);
+        } else {
+            // the biggest key in the left subtree works as seperator
+            bt_pair seperator = find_biggest(
+                    node->children[child], height-1);
+            node->pairs[index/2] = seperator;
+            delete(node->children[child], seperator.key, height-1);
+        }
+        // rebalance if child below min number of keys
+        bt_node *cn = node->children[child];
+        if(cn->num_keys<MIN_KEYS){
+            // check immediate siblings for available key
+            // take from left if possible
+            if(child>0 && node->children[child-1]->num_keys>MIN_KEYS){
+                bt_node *prev = node->children[child-1];
+                for(int i = cn->num_keys; i --> 0;)
+                    cn->pairs[i+1] = cn->pairs[i];
+                if(height-1)
+                    for(int i = cn->num_keys+1; i --> 0;)
+                        cn->children[i+1] = cn->children[i];
+                cn->pairs[0] = node->pairs[child-1];
+                node->pairs[child-1] = prev->pairs[prev->num_keys-1];
+                if(height-1)
+                    cn->children[0] = prev->children[prev->num_keys];
+                prev->num_keys--;
+                cn->num_keys++;
+                return;
+            }
+            // else take from right if possible
+            if(child<node->num_keys && node->children[child+1]->num_keys>MIN_KEYS){
+                bt_node *next = node->children[child+1];
+                cn->pairs[cn->num_keys] = node->pairs[child];
+                node->pairs[child] = next->pairs[0];
+                for(int i = 0; i < next->num_keys-1; i++)
+                    next->pairs[i] = next->pairs[i+1];
+                if(height-1){
+                    cn->children[cn->num_keys+1] = next->children[0];
+                    for(int i = 0; i < next->num_keys; i++)
+                        next->children[i] = next->children[i+1];
+                }
+                next->num_keys--;
+                cn->num_keys++;
+                return;
+            }
+            // if none available in siblings, merge
+            // make sure it works both when child is leftmost and rightmost
+            bt_node *left;
+            if(child == 0){
+                left = node->children[0];
+                cn = node->children[1];
+            } else {
+                left = node->children[child-1];
+                child--;
+            }
+            left->pairs[left->num_keys] = node->pairs[child];
+            for(int i = child; i < node->num_keys-1; i++)
+                node->pairs[i] = node->pairs[i+1];
+            if(height-1)
+                for(int i = child+1; i < node->num_keys; i++)
+                    node->children[i] = node->children[i+1];
+            for(int i = cn->num_keys; i --> 0;)
+                left->pairs[i+left->num_keys+1] = cn->pairs[i];
+            if(height-1)
+                for(int i = cn->num_keys+1; i --> 0;) 
+                    left->children[i+left->num_keys+1] = cn->children[i];
+            left->num_keys += 1 + cn->num_keys;
+            node->num_keys--;
+            free(cn);
+        }
+    }
+}
+
+void btree_delete(btree* tree, bt_key key){
+    if(tree->root){
+        delete(tree->root, key, tree->height);
+        // root may have fewer than MIN_KEYS keys
+        if(tree->root->num_keys==0){
+            if(tree->height==0){
+                tree->root = NULL;
+                free(tree->root);
+            } else {
+                bt_node *new_root = tree->root->children[0];
+                free(tree->root);
+                tree->root = new_root;
+                tree->height--;
+            }
+        }
+    }
+}
+
 void debug_print(bt_node* node, int height, int max_height){
     for(int i = 0; i < node->num_keys+1; i++){
         if(height>0)
             debug_print(node->children[i], height-1, max_height);
         if(i<node->num_keys){
             for(int s = (max_height-height)*4; s --> 0; printf(" "));
-            printf("%x (%p)\n", node->pairs[i].key, node->pairs[i].value);
+            printf("%x\n", node->pairs[i].key);
+            //printf("%x  %p\n", node->pairs[i].key, node->pairs[i].value);
         }
     }
 }

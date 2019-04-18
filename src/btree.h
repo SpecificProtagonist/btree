@@ -8,6 +8,7 @@
 // Should a value be stored alongside the key? Can be added later
 // The key type must be known at compile type
 
+// Uähh! No generics, I want C++!
 typedef
 #ifdef BT_KEY_TYPE
     BT_KEY_TYPE
@@ -29,7 +30,7 @@ typedef struct btree btree;
 btree* btree_new();
 
 // Inserts the key and corresponding value, 
-// returns true if key was already present
+// returns true if key was already present.
 bool btree_insert(btree*, bt_key, bt_value);
 
 bool btree_contains(btree*, bt_key);
