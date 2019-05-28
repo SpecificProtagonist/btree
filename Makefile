@@ -1,9 +1,9 @@
-DEFINES = BT_VALUE_TYPE=int
+DEFINES = BT_VALUE_TYPE=void*
 OPT = -g -Wall -Wextra -Wno-missing-field-initializers -pedantic-errors $(addprefix -D,$(DEFINES))
 
 # make some better recipes when there are more files to worry about
 
-build: src/test.c src/btree.h src/btree-debug.h build/btree.o
+build: src/test.c src/btree.h build/btree.o
 	@gcc $(OPT) $^ -o build/test
 	
 test: build

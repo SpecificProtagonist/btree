@@ -353,22 +353,59 @@ void btree_delete(btree* tree, bt_key key){
     }
 }
 
-static void debug_print(bt_node* node, int height, int max_height){
+// Recursove function, to be called only by btree_debug_print() (and itself).
+// Height is the distance to the leafs, max_height is the height of the root,
+// startc is a graph line connection character (unicode), lines_above and _below
+// are bitmask for whether to draw vertical lines at the given height
+static void debug_print(FILE *stream, bt_node* node, bool print_value, int height, int max_height, char *startc, uint32_t lines_above, uint32_t lines_below){
     for(int i = 0; i < node->num_keys+1; i++){
-        if(height>0)
-            debug_print(node->children[i], height-1, max_height);
+        // Print child
+        if(height){
+            uint32_t lines_row = i<=node->num_keys/2?lines_above:lines_below;
+            debug_print(stream, node->children[i], print_value, height-1, max_height,
+                    i==0 ?              "╭"
+                  : i==node->num_keys ? "╰"
+                  :                     "├",
+                  lines_row|(i==0?0:1<<(max_height-height)),
+                  lines_row|(i==node->num_keys?0:1<<(max_height-height)));
+        }
+        // Print key
         if(i<node->num_keys){
-            for(int s = (max_height-height)*4; s --> 0; printf(" "));
-            printf("%x\n", node->pairs[i].key);
-            //printf("%x  %p\n", node->pairs[i].key, node->pairs[i].value);
+            // Print space and horizontal lines
+            for(int s = 0; s<(max_height-height)*6; s++)
+                fputs(s%6==5 && (i<node->num_keys/2?lines_above:lines_below)&1<<(s/6) ?"│":" ", stream);
+            // Print horizontal lines & connectors
+            if(!height){ // leaf nodes
+                if(i==0 && node->num_keys==1)
+                    fprintf(stream, "\033[D%s──────", startc);
+                else if(i==0 && node->num_keys==2)
+                    fprintf(stream, "\033[D%s─────┬", startc);
+                else if(i==0)
+                    fprintf(stream, "     ╭");
+                else if(i==(node->num_keys-1)/2)
+                    fprintf(stream, "\033[D%s─────┼", startc);
+                else if(i==node->num_keys-1)
+                    fprintf(stream, "     ╰");
+                else
+                    fprintf(stream, "     │");
+            } else { // interior nodes
+                if(i==node->num_keys/2)
+                    fprintf(stream, "\033[D%s─────┼", startc);
+                else
+                    fprintf(stream, "     ├");
+            }
+            // Print key & value
+            if(print_value)
+                fprintf(stream, "%x → %p\n", node->pairs[i].key, node->pairs[i].value);
+            else
+                fprintf(stream, "%x\n", node->pairs[i].key);
         }
     }
 }
 
-void btree_debug_print(btree* tree){
-    printf("Tree height: %d\n", tree->height);
+void btree_debug_print(FILE *stream, btree* tree, bool print_value){
     if(tree->root)
-        debug_print(tree->root, tree->height, tree->height);
+        debug_print(stream, tree->root, print_value, tree->height, tree->height, "", 0, 0);
     else
-        puts("EMPTY");
+        puts("(empty)");
 }

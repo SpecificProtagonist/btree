@@ -2,7 +2,6 @@
 #include "stdlib.h"
 #include "time.h"
 #include "btree.h"
-#include "btree-debug.h"
 
 struct mark_occurences {
     bt_key *keys;
@@ -28,10 +27,10 @@ void test_random(int len, float del_chance, int attempts){
         int *correct = calloc(sizeof(int), len);
         bool *ops = calloc(sizeof(int), len);
         for(int i=0; i < len; i++){
-            bt_key key = rand()%0x1e + 1;
+            bt_key key = rand()%0x1ffffe + 1;
             bool delete = ((float)rand())/(float)RAND_MAX < del_chance;
             ops[i] = delete;
-            printf("%d   %s: %x\n", i, delete?"del":"add", key);
+            printf("%d   %s: %x\n\n", i, delete?"del":"add", key);
             if(a==485 && i==12){
                 puts("Problem");
             }
@@ -39,7 +38,7 @@ void test_random(int len, float del_chance, int attempts){
                 btree_delete(tree, key);
             else
                 btree_insert(tree, key, NULL);
-            btree_debug_print(tree);
+            btree_debug_print(stdout, tree, false);
             keys[i] = key;
             for(int j = 0; j<=i; j++)
                 if(keys[j]==key)
@@ -71,39 +70,13 @@ void test_random(int len, float del_chance, int attempts){
     }
 }
 
-// for testing specific cases
-void test_failcase(){
-    btree *tree = btree_new();
-    btree_insert(tree, 1, NULL);
-    btree_insert(tree, 2, NULL);
-    btree_insert(tree, 3, NULL);
-    btree_insert(tree, 4, NULL);
-    btree_insert(tree, 5, NULL);
-    btree_delete(tree, 1);
-    btree_debug_print(tree);
-    btree_delete(tree, 2);
-    btree_debug_print(tree);
-}
-
 int main(void){
-    
 //    time_t t;
 //    srand((unsigned) time(&t));
     srand(1);
     
-    test_random(15, 0.2, 486);
-//    test_failcase();
+    test_random(100, 0, 1);
+//    test_random(15, 0.2, 486);
 
     return 0;
 }
-
-/*
-    3
-    8
-a
-    11
-13
-    14
-1b
-    1d
-*/
