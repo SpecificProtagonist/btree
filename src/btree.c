@@ -61,7 +61,7 @@ typedef struct {
     bt_node* new_node;
 } insert_result;
 
-insert_result insert(bt_node *node, bt_pair pair, int height){
+static insert_result insert(bt_node *node, bt_pair pair, int height){
     int index = search_keys((void*)node, pair.key);
     if(index%2){ // key already present
         node->pairs[index/2].value = pair.value;
@@ -170,7 +170,7 @@ bool btree_insert(btree* tree, bt_key key, bt_value value){
     }
 }
 
-bool contains(bt_node* node, bt_key key, uint8_t height){
+static bool contains(bt_node* node, bt_key key, uint8_t height){
     int index = search_keys(node, key);
     if(index%2==1)
         return true; //key in node->pairs
@@ -187,7 +187,7 @@ bool btree_contains(btree* tree, bt_key key){
         return false;
 }
 
-void traverse(bt_node *node,
+static void traverse(bt_node *node,
         bt_value(*callback)(bt_key, bt_value, void*),
         void* id, bool reverse, int height){
     if(!reverse)
@@ -215,21 +215,21 @@ void btree_traverse(btree* tree,
         traverse(tree->root, callback, id, reverse, tree->height);
 }
 
-bt_pair find_smallest(bt_node *node, int height){
+static bt_pair find_smallest(bt_node *node, int height){
     if(!height)
         return node->pairs[0];
     else
         return find_smallest(node->children[0], height-1);
 }
 
-bt_pair find_biggest(bt_node *node, int height){
+static bt_pair find_biggest(bt_node *node, int height){
     if(!height)
         return node->pairs[node->num_keys-1];
     else
         return find_smallest(node->children[node->num_keys], height-1);
 }
 
-void free_node(bt_node *node, int height){
+static void free_node(bt_node *node, int height){
     if(height>0)
         for(int i=node->num_keys+1; i --> 0;)
             free_node(node->children[i], height-1);
@@ -242,7 +242,7 @@ void btree_free(btree *tree){
     free(tree);
 }
 
-void delete(bt_node *node, bt_key key, int height){
+static void delete(bt_node *node, bt_key key, int height){
     int index = search_keys(node, key);
     if(!height){
         if(!(index%2))
@@ -353,7 +353,7 @@ void btree_delete(btree* tree, bt_key key){
     }
 }
 
-void debug_print(bt_node* node, int height, int max_height){
+static void debug_print(bt_node* node, int height, int max_height){
     for(int i = 0; i < node->num_keys+1; i++){
         if(height>0)
             debug_print(node->children[i], height-1, max_height);
