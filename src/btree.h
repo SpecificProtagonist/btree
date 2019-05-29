@@ -5,9 +5,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
+// No multithreading support
+
 // For now everything is in RAM, may change later
-// Should a value be stored alongside the key? Can be added later
-// The key type must be known at compile type
+// The key and value types must be known at compile time
 
 // Uähh! No generics, I want C++!
 typedef
@@ -37,9 +38,15 @@ bool btree_insert(btree*, bt_key, bt_value);
 // Checks whether the tree contains the key
 bool btree_contains(btree*, bt_key);
 
-// Traverses tree, calling callback() with each element and id,
-// the later of which allows parallel calls from multiple threads;
-// the return value of callback will be stored.
+// Retrieves the corresponding value.
+// If success is not null, stores whether the key was found.
+bt_value btree_get(btree*, bt_key, bool *success);
+
+// Retrieves the corresponding value or return default_value if not found.
+bt_value btree_get_or_default(btree*, bt_key, bt_value default_value);
+
+// Traverses tree, calling callback() with each element and id
+// and setting the elements value to the return value.
 void btree_traverse(btree*, 
         bt_value(*callback)(bt_key, bt_value, void*),
         void* id, bool reverse);

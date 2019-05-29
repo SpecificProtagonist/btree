@@ -180,22 +180,51 @@ bool btree_insert(btree* tree, bt_key key, bt_value value){
     }
 }
 
-static bool contains(bt_node* node, bt_key key, uint8_t height){
+
+
+typedef struct {
+    bt_value value;
+    bool found;
+} search_result;
+
+static search_result search(bt_node* node, bt_key key, uint8_t height){
     int index = search_keys(node, key);
     if(index%2==1)
-        return true; //key in node->pairs
+        // key in node->pairs
+        return (search_result){node->pairs[index/2].value, true};
     if(height==0)
-        return false; //leaf node & not key's not a child
+        // leaf node & key's not a child
+        return (search_result){.found=false};
     else
-        return contains(node->children[index/2], key, height-1); //recurse
+        // recurse
+        return search(node->children[index/2], key, height-1);
 }
 
-bool btree_contains(btree* tree, bt_key key){
+bool btree_contains(btree *tree, bt_key key){
     if(tree->root)
-        return contains(tree->root, key, tree->height);
+        return search(tree->root, key, tree->height).found;
     else
         return false;
 }
+
+bt_value btree_get(btree *tree, bt_key key, bool *success){
+    if(tree->root){
+        search_result result = search(tree->root, key, tree->height);
+        *success = result.found;
+        return result.value;
+    } else {
+        *success = false;
+        return (bt_value){0};
+    }
+}
+
+bt_value btree_get_or_default(btree *tree, bt_key key, bt_value alt){
+    bool success;
+    bt_value value = btree_get(tree, key, &success);
+    return success ? value : alt;
+}
+
+
 
 static void traverse(bt_node *node,
         bt_value(*callback)(bt_key, bt_value, void*),
