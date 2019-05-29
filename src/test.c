@@ -21,24 +21,26 @@ void test_random(int len, float del_chance, int attempts){
     for(int a = 0; a < attempts; a++){
         btree *tree = btree_new();
 
-        printf("TEST KEYS %d:\n", a);
+//        printf("TEST KEYS %d:\n", a);
         bt_key *keys = calloc(sizeof(bt_key), len);
         int *occurences = calloc(sizeof(int), len);
         int *correct = calloc(sizeof(int), len);
         bool *ops = calloc(sizeof(int), len);
         for(int i=0; i < len; i++){
-            bt_key key = rand()%0x1ffffe + 1;
+            bt_key key = rand()%0x1e + 1;
             bool delete = ((float)rand())/(float)RAND_MAX < del_chance;
             ops[i] = delete;
-            printf("%d   %s: %x\n\n", i, delete?"del":"add", key);
-            if(a==485 && i==12){
-                puts("Problem");
-            }
             if(delete)
                 btree_delete(tree, key);
             else
                 btree_insert(tree, key, NULL);
-            btree_debug_print(stdout, tree, false);
+            if(a==485){
+                if(i==12){
+                    puts("Problem");
+                }
+                printf("%d   %s: %x\n\n", i, delete?"del":"add", key);
+                btree_debug_print(stdout, tree, false);
+            }
             keys[i] = key;
             for(int j = 0; j<=i; j++)
                 if(keys[j]==key)
@@ -54,12 +56,13 @@ void test_random(int len, float del_chance, int attempts){
     
         for(int i=len; i --> 0;)
             if(occurences[i] != correct[i]){
+                printf("Problem with iteration %d:\n", a);
                 puts("KEYS");
                 for(int j=len; j --> 0;)
                     printf("%s %x\n", ops[j]?"del":"add",keys[j]);
                 printf("Incorrect: %x deviating by %d\n", keys[i], 
                         occurences[i]-correct[i]);
-//            btree_debug_print(tree);
+                btree_debug_print(stdout, tree, false);
                 exit(1);
             }
 
@@ -75,8 +78,8 @@ int main(void){
 //    srand((unsigned) time(&t));
     srand(1);
     
-    test_random(100, 0, 1);
-//    test_random(15, 0.2, 486);
+//    test_random(1000, 0, 40);
+    test_random(15, 0.2, 486);
 
     return 0;
 }

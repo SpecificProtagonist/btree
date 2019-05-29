@@ -15,6 +15,10 @@ typedef struct {
     bt_value value;
 } bt_pair;
 
+// B-Tree nterior nodes also store data pointers; in B+-Trees this
+// is not the case as to increase fanout
+// Also, inserting/deleting keys/values/children is O(MAX_KEYS),
+// so maybe use binary tree instead of array? Would be much more complex though.
 typedef struct bt_node bt_node;
 struct bt_node {
     uint16_t num_keys;
@@ -42,10 +46,16 @@ btree* btree_new(){
  */
 int search_keys(bt_node* node, bt_key key){
     int min = 0;
-    int max = node->num_keys;
-    //while(max-min>7){
-       // do binary search 
-    //}
+    int max = node->num_keys; // max not inclusive
+    // binary search
+    while(max-min>7){
+       int median = (min+max)/2;
+       if(key < node->pairs[median].key)
+           max = median;
+       else
+           min = median;
+    }
+    // linear search (could maybe be removed)
     for(;min<max; min++){
         if(key < node->pairs[min].key)
             return 2*min;
@@ -383,13 +393,13 @@ static void debug_print(FILE *stream, bt_node* node, bool print_value, int heigh
                 else if(i==0)
                     fprintf(stream, "     ╭");
                 else if(i==(node->num_keys-1)/2)
-                    fprintf(stream, "\033[D%s─────┼", startc);
+                    fprintf(stream, "\033[D%s─────┤", startc);
                 else if(i==node->num_keys-1)
                     fprintf(stream, "     ╰");
                 else
                     fprintf(stream, "     │");
             } else { // interior nodes
-                if(i==node->num_keys/2)
+                if(i==(node->num_keys-1)/2)
                     fprintf(stream, "\033[D%s─────┼", startc);
                 else
                     fprintf(stream, "     ├");
