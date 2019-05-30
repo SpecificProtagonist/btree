@@ -46,11 +46,11 @@ bt_value btree_get(btree*, bt_key, bool *success);
 // Retrieves the corresponding value or return default_value if not found.
 bt_value btree_get_or_default(btree*, bt_key, bt_value default_value);
 
-// Traverses tree, calling callback() with each element and id
+// Traverses tree, calling callback() with each element and params
 // and storing back the return value.
 void btree_traverse(btree*, 
         bt_value(*callback)(bt_key, bt_value, void*),
-        void* id, bool reverse);
+        void* params, bool reverse);
 
 // Remove the key from the tree, return true if the tree did contain it, else false.
 bool btree_delete(btree*, bt_key);

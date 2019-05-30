@@ -398,6 +398,8 @@ bool btree_delete(btree* tree, bt_key key){
         return false;
 }
 
+
+
 // Recursove function, to be called only by btree_debug_print() (and itself).
 // Height is the distance to the leafs, max_height is the height of the root,
 // startc is a graph line connection character (unicode), lines_above and _below
@@ -441,17 +443,15 @@ static void debug_print(FILE *stream, bt_node* node, bool print_value, int heigh
             }
             // Print key & value
             if(print_value)
-                fprintf(stream, "%x → %p", node->pairs[i].key, node->pairs[i].value);
+                // Kinda hacky, but I don't think there's a better way
+                #define BT_PRINT_FORMAT _Generic(((bt_value){0}), \
+                    uint32_t: "%x → %x\n", uint64_t: "%x → %llx\n", \
+                    int32_t:  "%x → %x\n", int64_t:  "%x → %llx\n", \
+                    char*:    "%x → %s\n", default:  "%x → %p\n")
+                fprintf(stream, BT_PRINT_FORMAT,
+                        node->pairs[i].key, node->pairs[i].value);
             else
-                fprintf(stream, "%x", node->pairs[i].key);
-            // debug
-            /*fprintf(stream, "\033[40D\033[25C");
-            for(int i=0; i<4; i++)
-                fprintf(stream, lines_above&(1<<i)?"|":"0");
-            fprintf(stream, "   ");
-            for(int i=0; i<4; i++)
-                fprintf(stream, lines_below&(1<<i)?"|":"0");
-            */fprintf(stream, "\n");
+                fprintf(stream, "%x\n", node->pairs[i].key);
         }
     }
 }
