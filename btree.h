@@ -5,7 +5,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
-// No multithreading support
+// B-Trees are balanced trees, typicaly with a high fanout,
+// often used for file systems and other databases.
+
+// This implementation offers no multithreading support.
 
 // The key and value types must be known at compile time.
 // A way around this would be implementing functions as macros,
@@ -30,7 +33,69 @@ bt_value;
 
 typedef struct btree btree;
 
-btree* btree_new();
+
+
+// Allocators manage memory for b-trees. You can define your own, 
+// but the inbuild ones should be sufficient in most cases.
+// You shouldn't call any member function yourself and 
+// should only store it as a pointer (as not to remove any extra data).
+typedef struct {
+    // Indicate that a new tree has been created
+    void (*tree_created)(void *this, btree*);
+    // Allocates space for a new node of size node_size
+    void *(*new)(void *this);
+    // Make sure that the node is in memory, 
+    // which means doing nothing in case of bt_ram_allocator.
+    void (*load)(void *this, void *node);
+    // Indicate that the node doesn't have to be kept in memory anymore.
+    void (*unload)(void *this, void *node);
+    // Deallocates a node
+    void (*free)(void* this, void *node);
+    // Indicate that the b-tree has been deleted
+    void (*tree_deleted)(void *this, btree*);
+
+    // Size of a node in byte
+    uint16_t node_size;
+} bt_allocator;
+
+// Creates a new allocator that keeps each entire trees in RAM,
+// can be freed with free().
+bt_allocator *btree_new_ram_alloc(uint16_t node_size);
+
+// Creates a new allocator that keeps a tree in a file.
+// A tree (or other data) already present there will be overriden.
+// This allocator can only supply a single tree, to create another one
+// the previous one has to be deleted.
+// Can be freed with free().
+bt_allocator *btree_new_file_alloc_single(FILE *file);
+
+// Loads the allocator created with bt_new_file_alloc_single() from file.
+bt_allocator *btree_load_file_alloc_single(FILE *file);
+
+// Creates a new allocator that keeps trees in a file.
+// Trees (or other data) already present there will be overriden.
+// Can be freed with free().
+bt_allocator *btree_new_file_alloc_multi(FILE *file);
+
+// Loads the allocator created with bt_new_file_alloc_multi() from file
+bt_allocator *btree_load_file_alloc_multi(FILE *file);
+
+// Gets a unique id for a tree created with a file_alloc_multi
+uint32_t btree_file_alloc_multi_get_id(btree*);
+
+// Get a tree by id from a file_alloc_multi
+btree *btree_file_alloc_multi_get_tree(uint32_t id);
+
+
+
+// Creates a new b-tree from the given allocator.
+// userdata_size specifies the size the custom data stored alongside the tree
+// (should me much smaller than the allocators node_size).
+btree *btree_create(bt_allocator*, uint16_t userdata_size);
+
+// Gets a pointer to the userdata stored alongside the tree,
+// the size of which depends on the allocator.
+void *btree_userdata_pointer(btree*);
 
 // Inserts the key and corresponding value, 
 // returns true if key was already present.
@@ -53,10 +118,10 @@ void btree_traverse(btree*,
         void* params, bool reverse);
 
 // Remove the key from the tree, return true if the tree did contain it, else false.
-bool btree_delete(btree*, bt_key);
+bool btree_remove(btree*, bt_key);
 
-// Deallocates all memory taken up by the tree
-void btree_free(btree*);
+// Deletes a tree
+void btree_delete(btree*);
 
 // Prints out a textual representation of the btree (intended for a monospace font)
 // to stream. Uses hexadecimal format for keys and pointer format for values,

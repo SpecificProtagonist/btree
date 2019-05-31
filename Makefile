@@ -10,11 +10,11 @@ PAGE_SIZE=4096
 CC=gcc
 
 DEFINES = BT_KEY_TYPE=$(KEY_TYPE) BT_VALUE_TYPE=$(VALUE_TYPE) PAGE_SIZE=$(PAGE_SIZE)
-CFLAGS = -g -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -pedantic-errors $(addprefix -D,$(DEFINES))
+CFLAGS = -g -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -pedantic-errors $(addprefix -D,$(DEFINES))
 
 
 # Build static library, there's no reason for a shared lib
-static: build/btree.o
+static: build/btree.o build/ram_alloc.o build/file_alloc_single.o build/file_alloc_multi.o
 	@$(CC) $(CFLAGS) btree.c -c -o build/btree.o
 	@ar rcs build/libbtree.a build/btree.o
 
@@ -26,7 +26,7 @@ _test: static
 	@build/test
 	@echo "Test successful"
 
-build/btree.o: btree.c btree.h
+build/%.o: %.c btree.h
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

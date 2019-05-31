@@ -107,7 +107,7 @@ int main(void){
     //srand(1);
     
     for(float del_chance = 0.1; del_chance < 0.6; del_chance += 0.1)
-        for(int a = 1000; a --> 0;){
+        for(int a = 3000; a --> 0;){
             test_random(40, 0.25);
             test_random(400, 0.25);
         }

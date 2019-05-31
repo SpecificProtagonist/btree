@@ -8,8 +8,8 @@ typedef struct {
 } bt_pair;
 
 // Number of keys is currently set at compile time. Storing it as an field
-// of struct btree instead would preclude use of structures for nodes and not
-// be very usefull anyways.
+// of struct btree instead would preclude use of structures for nodes
+// but is a prerequisite for allowing different key & value types at runtime.
 #ifndef MAX_INTERIOR_KEYS
     #define MAX_INTERIOR_KEYS ((PAGE_SIZE-32)/(sizeof(struct{bt_pair a; void* b;}))-1)
 #endif
@@ -22,6 +22,9 @@ typedef struct {
 #define MIN_LEAF_KEYS (MAX_LEAF_KEYS/2)
 #define MIN_KEYS(height) (height?MIN_INTERIOR_KEYS:MIN_LEAF_KEYS)
 
+
+typedef uint32_t offset;
+
 // B-Tree interior nodes also store data pointers; in B+-Trees this
 // is not the case as to increase fanout
 // Also, inserting/deleting keys/values/children is O(MAX_KEYS),
@@ -30,7 +33,7 @@ typedef struct bt_node bt_node;
 struct bt_node {
     uint16_t num_keys;
     bt_pair pairs[MAX_INTERIOR_KEYS];
-    bt_node* children[MAX_INTERIOR_KEYS+1];
+    bt_node *children[MAX_INTERIOR_KEYS+1];
 };
 
 typedef struct {
@@ -39,18 +42,28 @@ typedef struct {
 } bt_node_leaf;
 
 struct btree {
-   bt_node* root;
-   int8_t height;
+    bt_node* root;
+    int8_t height;
+    bt_allocator *alloc;
 };
 
-btree* btree_new(){
-    return calloc(sizeof(btree), 1);
+
+
+
+btree *btree_create(bt_allocator *alloc, uint16_t userdata_size){
+    btree *tree = alloc->new(alloc);
+    tree->height = 0;
+    tree->alloc = alloc;
+    //TODO root node in same page (→ also tree->height==-1 instead of !tree->root)
+    return tree;
 }
 
-/*
- *  Returns the index of key *2+1 (even number if between indices)
- *  (therefore can't use bsearch())
- */
+void *btree_userdata_pointer(btree *tree){
+    return ((char*)tree)+sizeof(btree);
+}
+
+// Returns the index of key *2+1 (even number if between indices)
+// (therefore can't use bsearch())
 static int search_keys(bt_node* node, bt_key key){
     int min = 0;
     int max = node->num_keys; // max not inclusive
@@ -286,13 +299,13 @@ static void free_node(bt_node *node, int height){
     free(node);
 }
 
-void btree_free(btree *tree){
+void btree_delete(btree *tree){
     if(tree->root)
         free_node(tree->root, tree->height);
     free(tree);
 }
 
-static bool delete(bt_node *node, bt_key key, int height){
+static bool remove_key(bt_node *node, bt_key key, int height){
     int index = search_keys(node, key);
     if(!height){
         if(!(index%2))
@@ -306,7 +319,7 @@ static bool delete(bt_node *node, bt_key key, int height){
         int child = index/2;
         bool found;
         if(!(index%2)){
-            found = delete(node->children[child], key, height-1);
+            found = remove_key(node->children[child], key, height-1);
         } else if(child<node->num_keys && 
                   node->children[child+1]->num_keys > 
                   node->children[child]->num_keys){
@@ -315,14 +328,14 @@ static bool delete(bt_node *node, bt_key key, int height){
             bt_pair seperator = find_smallest(
                         node->children[child], height-1);
             node->pairs[index/2] = seperator;
-            delete(node->children[child], seperator.key, height-1);
+            remove_key(node->children[child], seperator.key, height-1);
             found = true;
         } else {
             // the biggest key in the left subtree works as seperator
             bt_pair seperator = find_biggest(
                     node->children[child], height-1);
             node->pairs[index/2] = seperator;
-            delete(node->children[child], seperator.key, height-1);
+            remove_key(node->children[child], seperator.key, height-1);
             found = true;
         }
         // rebalance if child below min number of keys
@@ -389,9 +402,9 @@ static bool delete(bt_node *node, bt_key key, int height){
     }
 }
 
-bool btree_delete(btree* tree, bt_key key){
+bool btree_remove(btree* tree, bt_key key){
     if(tree->root){
-        bool found = delete(tree->root, key, tree->height);
+        bool found = remove_key(tree->root, key, tree->height);
         // root may have fewer than MIN_KEYS keys
         if(tree->root->num_keys==0){
             if(tree->height==0){
