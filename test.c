@@ -1,7 +1,9 @@
-#include "stdio.h"
-#include "stdlib.h"
-#include "time.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include "btree.h"
+
+#include <unistd.h>
 
 struct mark_occurences {
     bt_key *keys;

@@ -2,15 +2,25 @@
 #include <stdio.h>
 #include "btree.h"
 
-// Number of keys is currently set at compile time. Storing it as an field
-// of struct btree instead would be nice, but preclude use of structures for nodes
-// TODO: split into MAX_KEYS_INTERIOR and MAX_KEYS_LEAF
-#define MIN_KEYS (MAX_KEYS/2)
-
 typedef struct {
     bt_key key;
     bt_value value;
 } bt_pair;
+
+// Number of keys is currently set at compile time. Storing it as an field
+// of struct btree instead would preclude use of structures for nodes and not
+// be very usefull anyways.
+#ifndef MAX_INTERIOR_KEYS
+    #define MAX_INTERIOR_KEYS ((PAGE_SIZE-32)/(sizeof(struct{bt_pair a; void* b;}))-1)
+#endif
+#ifndef MAX_LEAF_KEYS
+    #define MAX_LEAF_KEYS ((PAGE_SIZE-32)/(sizeof(bt_pair))-1)
+#endif
+#define MAX_KEYS(height) (height?MAX_INTERIOR_KEYS:MAX_LEAF_KEYS)
+
+#define MIN_INTERIOR_KEYS (MAX_INTERIOR_KEYS/2)
+#define MIN_LEAF_KEYS (MAX_LEAF_KEYS/2)
+#define MIN_KEYS(height) (height?MIN_INTERIOR_KEYS:MIN_LEAF_KEYS)
 
 // B-Tree interior nodes also store data pointers; in B+-Trees this
 // is not the case as to increase fanout
@@ -19,13 +29,13 @@ typedef struct {
 typedef struct bt_node bt_node;
 struct bt_node {
     uint16_t num_keys;
-    bt_pair pairs[MAX_KEYS];
-    bt_node* children[MAX_KEYS+1];
+    bt_pair pairs[MAX_INTERIOR_KEYS];
+    bt_node* children[MAX_INTERIOR_KEYS+1];
 };
 
 typedef struct {
     uint8_t num_keys;
-    bt_pair pairs[MAX_KEYS];
+    bt_pair pairs[MAX_LEAF_KEYS];
 } bt_node_leaf;
 
 struct btree {
@@ -84,7 +94,7 @@ static insert_result insert(bt_node *node, bt_pair pair, int height){
         pair = split.pair;
         new_node = split.new_node;
     }
-    if(node->num_keys < MAX_KEYS){
+    if(node->num_keys < MAX_KEYS(height)){
         // enough room, insert new child
         for(int i = node->num_keys; i --> child;)
             node->pairs[i+1] = node->pairs[i];
@@ -104,8 +114,8 @@ static insert_result insert(bt_node *node, bt_pair pair, int height){
         // don't allocate space for children if leaf
         bt_node *right = calloc(
                 height?sizeof(bt_node):sizeof(bt_node_leaf), 1);
-        node->num_keys = MIN_KEYS + MAX_KEYS%2; 
-        right->num_keys = MIN_KEYS;
+        node->num_keys = MIN_KEYS(height) + MAX_KEYS(height)%2; 
+        right->num_keys = MIN_KEYS(height);
         // if the key is less than the median, insert it into the old node
         // if greater insert into the new one
         // copy half of the keys into the right node
@@ -114,19 +124,19 @@ static insert_result insert(bt_node *node, bt_pair pair, int height){
         if(child == node->num_keys){
             //key in middle
             median = pair;
-            for(int i = MAX_KEYS; i --> node->num_keys;)
+            for(int i = MAX_KEYS(height); i --> node->num_keys;)
                 right->pairs[i-node->num_keys] = node->pairs[i];
             if(height)
                 right->children[0] = new_node;
             if(height)
-                for(int i = MAX_KEYS+1; i --> node->num_keys+1;)
+                for(int i = MAX_KEYS(height)+1; i --> node->num_keys+1;)
                     right->children[i-node->num_keys] = node->children[i];
-        } else if(child <= MIN_KEYS){
+        } else if(child <= MIN_KEYS(height)){
             //key in left node
-            for(int i = MAX_KEYS; i --> node->num_keys;)
+            for(int i = MAX_KEYS(height); i --> node->num_keys;)
                 right->pairs[i-node->num_keys] = node->pairs[i];
             if(height)
-                for(int i = MAX_KEYS+1; i --> node->num_keys;)
+                for(int i = MAX_KEYS(height)+1; i --> node->num_keys;)
                     right->children[i-node->num_keys] = node->children[i];
             median = node->pairs[node->num_keys-1];
             for(int i = node->num_keys-1; i --> child;)
@@ -148,10 +158,10 @@ static insert_result insert(bt_node *node, bt_pair pair, int height){
             right->pairs[child-node->num_keys-1] = pair;
             if(height)
                 right->children[child-node->num_keys] = new_node;
-            for(int i = MAX_KEYS; i --> child;)
+            for(int i = MAX_KEYS(height); i --> child;)
                 right->pairs[i-node->num_keys] = node->pairs[i];
             if(height)
-                for(int i = MAX_KEYS+1; i --> child+1;)
+                for(int i = MAX_KEYS(height)+1; i --> child+1;)
                     right->children[i-node->num_keys] = node->children[i];
         }
         return (insert_result){false, median, right};
@@ -317,10 +327,10 @@ static bool delete(bt_node *node, bt_key key, int height){
         }
         // rebalance if child below min number of keys
         bt_node *cn = node->children[child];
-        if(cn->num_keys<MIN_KEYS){
+        if(cn->num_keys<MIN_KEYS(height-1)){
             // check immediate siblings for available key
             // take from left if possible
-            if(child>0 && node->children[child-1]->num_keys>MIN_KEYS){
+            if(child>0 && node->children[child-1]->num_keys>MIN_KEYS(height-1)){
                 bt_node *prev = node->children[child-1];
                 for(int i = cn->num_keys; i --> 0;)
                     cn->pairs[i+1] = cn->pairs[i];
@@ -335,7 +345,8 @@ static bool delete(bt_node *node, bt_key key, int height){
                 cn->num_keys++;
             }
             // else take from right if possible
-            else if(child<node->num_keys && node->children[child+1]->num_keys>MIN_KEYS){
+            else if(child<node->num_keys && 
+                    node->children[child+1]->num_keys>MIN_KEYS(height-1)){
                 bt_node *next = node->children[child+1];
                 cn->pairs[cn->num_keys] = node->pairs[child];
                 node->pairs[child] = next->pairs[0];
