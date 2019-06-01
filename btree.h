@@ -94,8 +94,10 @@ btree btree_create(bt_alloc_ptr, uint16_t userdata_size);
 
 // Gets a pointer to the userdata stored alongside the tree.
 // This doesn't have a guaranteed alignment.
-// TODO: load/unload tree
-void *btree_userdata_pointer(btree);
+void *btree_load_userdata(btree);
+
+// Indicate that the userdata pointer isn't in use anymore
+void btree_unload_userdata(btree);
 
 // Inserts the key and corresponding value, 
 // returns true if key was already present.

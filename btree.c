@@ -36,9 +36,9 @@ typedef uint32_t offset;
 # define PAIRS(node)    (bt_pair)((uint32_t)+2)
 # define CHILDREN(node) (bt_node_id)(PAIRS(node)+MAX_KEYS(NODE))
 
-
+// Tree metadata, kept in a node
 typedef struct {
-    // Root node of the tree, will be located on same page
+    // Root node of the tree, will be located on same page/node
     void *root;
     // Allocator used for this tree
     bt_alloc_ptr alloc;
@@ -76,8 +76,13 @@ btree btree_create(bt_alloc_ptr alloc, uint16_t userdata_size){
     return tree;
 }
 
-void *btree_userdata_pointer(btree *tree){
-    return ((char*)tree)+sizeof(btree);
+void *btree_load_userdata(btree tree){
+    btree_data *tree_data = tree.alloc->load(tree, tree.root);
+    return ((char*)tree_data)+sizeof(btree_data);
+}
+
+void btree_unload_userdata(btree tree){
+    tree.alloc->unload(tree, tree.root);
 }
 
 // Returns the index of key *2+1 (even number if between indices)
