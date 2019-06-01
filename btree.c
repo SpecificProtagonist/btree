@@ -2,59 +2,76 @@
 #include <stdio.h>
 #include "btree.h"
 
+/*************
+ * DATATYPES *
+ *************/
+
+// Represents a keys-value pair
 typedef struct {
     bt_key key;
     bt_value value;
 } bt_pair;
 
-// Number of keys is currently set at compile time. Storing it as an field
-// of struct btree instead would preclude use of structures for nodes
-// but is a prerequisite for allowing different key & value types at runtime.
-#ifndef MAX_INTERIOR_KEYS
-    #define MAX_INTERIOR_KEYS ((PAGE_SIZE-32)/(sizeof(struct{bt_pair a; void* b;}))-1)
-#endif
-#ifndef MAX_LEAF_KEYS
-    #define MAX_LEAF_KEYS ((PAGE_SIZE-32)/(sizeof(bt_pair))-1)
-#endif
-#define MAX_KEYS(height) (height?MAX_INTERIOR_KEYS:MAX_LEAF_KEYS)
-
-#define MIN_INTERIOR_KEYS (MAX_INTERIOR_KEYS/2)
-#define MIN_LEAF_KEYS (MAX_LEAF_KEYS/2)
-#define MIN_KEYS(height) (height?MIN_INTERIOR_KEYS:MIN_LEAF_KEYS)
-
-
 typedef uint32_t offset;
 
-// B-Tree interior nodes also store data pointers; in B+-Trees this
-// is not the case as to increase fanout
-// Also, inserting/deleting keys/values/children is O(MAX_KEYS),
-// so maybe use binary tree instead of array? Would be more complex though.
-typedef struct bt_node bt_node;
-struct bt_node {
-    uint16_t num_keys;
-    bt_pair pairs[MAX_INTERIOR_KEYS];
-    bt_node *children[MAX_INTERIOR_KEYS+1];
-};
+// Inserting/deleting keys/values/children is O(MAX_KEYS),
+// so maybe use binary tree in array representation instead of array?
+// Would be more complex though.
+// TODO: worry about alignment
+// TODO: Allow variable datatype sizes (including bt_node_id)
+// Currently this could cause problems with alignment, which will be fixed
+// if datatypes are represented as variable length char arrays.
+/// Node structure
+/*  uint16_t   num_keys
+ *  uint16_t   max_keys
+ *  bt_pair    pairs[max_keys]
+ * // only in interior nodes:
+ *  bt_node_id children[max_keys+1]
+ */
 
-typedef struct {
-    uint8_t num_keys;
-    bt_pair pairs[MAX_LEAF_KEYS];
-} bt_node_leaf;
+// Accessor makros since nodes aren't structs
+# define NUM_KEYS(node) *((uint16_t)node)
+# define MAX_KEYS(node) *(((uint16_t*)node)+1)
+# define MIN_KEYS(node) (MAX_KEYS(node)/2)
+# define PAIRS(node)    (bt_pair)((uint32_t)+2)
+# define CHILDREN(node) (bt_node_id)(PAIRS(node)+MAX_KEYS(NODE))
+
 
 struct btree {
-    bt_node* root;
-    int8_t height;
+    // Root node of the tree, will be located on same page
+    void *root;
+    // Allocator used for this tree
     bt_allocator *alloc;
+    // Maximum number of keys for each key type (will differ for root)
+    uint16_t max_interior_keys;
+    uint16_t max_leaf_keys;
+    // Height of the tree. -1 Means empty tree, 0 means the root is a leaf.
+    int8_t height;
 };
 
 
+
+
+/*************
+ * FUNCTIONS *
+ *************/
 
 
 btree *btree_create(bt_allocator *alloc, uint16_t userdata_size){
-    btree *tree = alloc->new(alloc);
+    bt_node_id tree_node = alloc->new(alloc);
+    btree *tree = alloc->load(alloc, NULL, tree_node);
     tree->height = 0;
     tree->alloc = alloc;
+    // Calculate how many keys will fit in each type of node
+    // TODO: check correctness, esp. in regards to padding
+    tree->max_interior_keys = (alloc->node_size-32)
+                            / (sizeof(struct{bt_pair a; void* b;})) - 1;
+    tree->max_leaf_keys = (alloc->node_size-32) / sizeof(bt_pair) - 1;
+    uint16_t max_root_keys = (alloc->node_size-32-userdata_size)
+                           / (sizeof(struct{bt_pair a; void* b;})) - 1;
     //TODO root node in same page (→ also tree->height==-1 instead of !tree->root)
+    // maybe also store allocator-specific data
+    alloc->unload(alloc, tree, tree_node);
     return tree;
 }
 

@@ -11,10 +11,8 @@
 // This implementation offers no multithreading support.
 
 // The key and value types must be known at compile time.
-// A way around this would be implementing functions as macros,
-// which would require rewriting in an iterative style and bloat object files,
-// or combining makro with storing the size of both types in the struct btree,
-// which would make the code larger & harder to read/write.
+// A way around this would be combining makro with storing 
+// the size of both types in the struct btree.
 typedef
 #ifdef BT_KEY_TYPE
     BT_KEY_TYPE
@@ -39,18 +37,20 @@ typedef struct btree btree;
 // but the inbuild ones should be sufficient in most cases.
 // You shouldn't call any member function yourself and 
 // should only store it as a pointer (as not to remove any extra data).
+typedef uint64_t bt_node_id;
 typedef struct {
     // Indicate that a new tree has been created
     void (*tree_created)(void *this, btree*);
     // Allocates space for a new node of size node_size
-    void *(*new)(void *this);
+    bt_node_id (*new)(void *this);
     // Make sure that the node is in memory, 
     // which means doing nothing in case of bt_ram_allocator.
-    void (*load)(void *this, void *node);
+    // Will be called once with NULL as the tree during btree_create().
+    void *(*load)(void *this, btree*, bt_node_id node);
     // Indicate that the node doesn't have to be kept in memory anymore.
-    void (*unload)(void *this, void *node);
+    void (*unload)(void *this, btree*, bt_node_id node);
     // Deallocates a node
-    void (*free)(void* this, void *node);
+    void (*free)(void* this, bt_node_id node);
     // Indicate that the b-tree has been deleted
     void (*tree_deleted)(void *this, btree*);
 
@@ -60,6 +60,7 @@ typedef struct {
 
 // Creates a new allocator that keeps each entire trees in RAM,
 // can be freed with free().
+// TODO: recommend default node_size (requires benchmark)
 bt_allocator *btree_new_ram_alloc(uint16_t node_size);
 
 // Creates a new allocator that keeps a tree in a file.
@@ -95,6 +96,7 @@ btree *btree_create(bt_allocator*, uint16_t userdata_size);
 
 // Gets a pointer to the userdata stored alongside the tree,
 // the size of which depends on the allocator.
+// TODO: load/unload tree
 void *btree_userdata_pointer(btree*);
 
 // Inserts the key and corresponding value, 
