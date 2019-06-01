@@ -37,17 +37,17 @@ typedef uint32_t offset;
 # define CHILDREN(node) (bt_node_id)(PAIRS(node)+MAX_KEYS(NODE))
 
 
-struct btree {
+typedef struct {
     // Root node of the tree, will be located on same page
     void *root;
     // Allocator used for this tree
-    bt_allocator *alloc;
+    bt_alloc_ptr alloc;
     // Maximum number of keys for each key type (will differ for root)
     uint16_t max_interior_keys;
     uint16_t max_leaf_keys;
     // Height of the tree. -1 Means empty tree, 0 means the root is a leaf.
     int8_t height;
-};
+} btree_data;
 
 
 
@@ -57,21 +57,22 @@ struct btree {
  *************/
 
 
-btree *btree_create(bt_allocator *alloc, uint16_t userdata_size){
+btree btree_create(bt_alloc_ptr alloc, uint16_t userdata_size){
     bt_node_id tree_node = alloc->new(alloc);
-    btree *tree = alloc->load(alloc, NULL, tree_node);
-    tree->height = 0;
-    tree->alloc = alloc;
+    btree tree = (btree){alloc, tree_node};
+    btree_data *tree_data = alloc->load(tree, tree_node);
+    tree_data->height = 0;
+    tree_data->alloc = alloc;
     // Calculate how many keys will fit in each type of node
     // TODO: check correctness, esp. in regards to padding
-    tree->max_interior_keys = (alloc->node_size-32)
+    tree_data->max_interior_keys = (alloc->node_size-32)
                             / (sizeof(struct{bt_pair a; void* b;})) - 1;
-    tree->max_leaf_keys = (alloc->node_size-32) / sizeof(bt_pair) - 1;
+    tree_data->max_leaf_keys = (alloc->node_size-32) / sizeof(bt_pair) - 1;
     uint16_t max_root_keys = (alloc->node_size-32-userdata_size)
                            / (sizeof(struct{bt_pair a; void* b;})) - 1;
     //TODO root node in same page (→ also tree->height==-1 instead of !tree->root)
     // maybe also store allocator-specific data
-    alloc->unload(alloc, tree, tree_node);
+    alloc->unload(tree, tree_node);
     return tree;
 }
 
