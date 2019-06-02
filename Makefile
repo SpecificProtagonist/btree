@@ -4,12 +4,10 @@
 #TODO: test types with spaces, e.g. 'short int'
 KEY_TYPE=uint32_t
 VALUE_TYPE=void*
-# Page size should almost always be 4KiB
-PAGE_SIZE=4096
 
 CC=gcc
 
-DEFINES = BT_KEY_TYPE=$(KEY_TYPE) BT_VALUE_TYPE=$(VALUE_TYPE) PAGE_SIZE=$(PAGE_SIZE)
+DEFINES = BT_KEY_TYPE=$(KEY_TYPE) BT_VALUE_TYPE=$(VALUE_TYPE)
 CFLAGS = -g -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -pedantic-errors $(addprefix -D,$(DEFINES))
 
 

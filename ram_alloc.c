@@ -25,13 +25,13 @@ static void free_node(void *this, bt_node_id node){
 }
 
 // Nothing to do
-static void tree_deleted(btree *tree){}
+static void tree_deleted(btree tree){}
 
 
 
 bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size){
-    bt_alloc_ptr ram_alloc = malloc(sizeof(bt_alloc));
-    *ram_alloc = (bt_alloc){
+    bt_alloc_ptr ram_alloc = malloc(sizeof(struct bt_alloc));
+    *ram_alloc = (struct bt_alloc){
         tree_created,
         new,
         load,

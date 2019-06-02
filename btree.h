@@ -31,65 +31,14 @@ bt_value;
 
 typedef struct btree btree;
 
-
-
-// Allocators manage memory for b-trees. You can define your own, 
-// but the inbuild ones should be sufficient in most cases.
-// You shouldn't call any member function yourself.
-typedef uint64_t bt_node_id;
-typedef struct {
-    // Indicate that a new tree has been created
-    void (*tree_created)(btree);
-    // Allocates space for a new node of size node_size
-    bt_node_id (*new)(void *this);
-    // Make sure that the node is in memory, 
-    // which means doing nothing in case of bt_ram_allocator.
-    void *(*load)(btree, bt_node_id node);
-    // Indicate that the node doesn't have to be kept in memory anymore.
-    void (*unload)(btree, bt_node_id node);
-    // Deallocates a node
-    void (*free)(void* this, bt_node_id node);
-    // Indicate that the b-tree has been deleted
-    void (*tree_deleted)(btree*);
-
-    // Size of a node in byte
-    uint16_t node_size;
-} bt_alloc, *bt_alloc_ptr;
-
-struct btree {
-    bt_alloc_ptr alloc;
-    bt_node_id root;
-};
-
-// Creates a new allocator that keeps each entire trees in RAM,
-// can be freed with free().
-// TODO: recommend default node_size (requires benchmark)
-bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size);
-
-// Creates a new allocator that keeps a tree in a file.
-// A tree (or other data) already present there will be overriden.
-// This allocator can only supply a single tree, to create another one
-// the previous one has to be deleted.
-// Can be freed with free().
-bt_alloc_ptr btree_new_file_alloc_single(FILE *file);
-
-// Loads the allocator created with bt_new_file_alloc_single() from file.
-bt_alloc_ptr btree_load_file_alloc_single(FILE *file);
-
-// Creates a new allocator that keeps trees in a file.
-// Trees (or other data) already present there will be overriden.
-// Can be freed with free().
-bt_alloc_ptr btree_new_file_alloc_multi(FILE *file);
-
-// Loads the allocator created with bt_new_file_alloc_multi() from file
-bt_alloc_ptr btree_load_file_alloc_multi(FILE *file);
+typedef struct bt_alloc *bt_alloc_ptr;
 
 
 
 
 // Creates a new b-tree from the given allocator.
-// userdata_size specifies the size the custom data stored alongside the tree
-// (should me much smaller than the allocators node_size).
+// userdata_size specifies the size of custom data (if any) stored along
+// side the tre (should be much smaller than the allocators node_size).
 btree btree_create(bt_alloc_ptr, uint16_t userdata_size);
 
 // Gets a pointer to the userdata stored alongside the tree.
@@ -129,5 +78,63 @@ void btree_delete(btree);
 // to stream. Uses hexadecimal format for keys and pointer format for values,
 // only prints values if print_value; expects utf-8 locale and VT1000.
 void btree_debug_print(FILE *stream, btree, bool print_value);
+
+
+
+
+
+// Allocators manage memory for b-trees. You can define your own, 
+// but the inbuild ones should be sufficient in most cases.
+// You shouldn't call any member function yourself.
+typedef uint64_t bt_node_id;
+struct bt_alloc {
+    // Indicate that a new tree has been created
+    void (*tree_created)(btree);
+    // Allocates space for a new node of size node_size.
+    // This may also be used to store data other than tree nodes.
+    // Node id 0 marks invalid node.
+    bt_node_id (*new)(void *this);
+    // Make sure that the node is in memory, 
+    // which means doing nothing in case of bt_ram_allocator.
+    void *(*load)(btree, bt_node_id node);
+    // Indicate that the node doesn't have to be kept in memory anymore.
+    void (*unload)(btree, bt_node_id node);
+    // Deallocates a node (may be called both when loaded or not)
+    void (*free)(void* this, bt_node_id node);
+    // Indicate that the b-tree has been deleted
+    void (*tree_deleted)(btree);
+
+    // Size of a node in bytes
+    uint16_t node_size;
+};
+
+struct btree {
+    bt_alloc_ptr alloc;
+    bt_node_id root;
+};
+
+
+// Creates a new allocator that keeps each entire trees in RAM,
+// can be freed with free().
+// TODO: recommend default node_size (requires benchmark)
+bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size);
+
+// Creates a new allocator that keeps a tree in a file.
+// A tree (or other data) already present there will be overriden.
+// This allocator can only supply a single tree, to create another one
+// the previous one has to be deleted.
+// Can be freed with free().
+bt_alloc_ptr btree_new_file_alloc_single(FILE *file);
+
+// Loads the allocator created with bt_new_file_alloc_single() from file.
+bt_alloc_ptr btree_load_file_alloc_single(FILE *file);
+
+// Creates a new allocator that keeps trees in a file.
+// Trees (or other data) already present there will be overriden.
+// Can be freed with free().
+bt_alloc_ptr btree_new_file_alloc_multi(FILE *file);
+
+// Loads the allocator created with bt_new_file_alloc_multi() from file
+bt_alloc_ptr btree_load_file_alloc_multi(FILE *file);
 
 #endif
