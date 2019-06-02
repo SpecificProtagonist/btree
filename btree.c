@@ -161,7 +161,7 @@ static insert_result insert(btree tree, bt_node *node, bt_pair pair, int height)
         PAIRS(node)[index/2].value = pair.value;
         return (insert_result){true};
     }
-    bt_node_id new_node;
+    bt_node_id new_node = 0;
     int child = index/2;
     if(height){
         bt_node_id child_id = CHILDREN(node)[child];
@@ -178,7 +178,7 @@ static insert_result insert(btree tree, bt_node *node, bt_pair pair, int height)
         // enough room, insert new child
         for(int i = NUM_KEYS(node); i --> child;)
             PAIRS(node)[i+1] = PAIRS(node)[i];
-        if(height) // height==0 means leave → no children
+        if(height) // height==0 means leaf → no children
             for(int i = NUM_KEYS(node); i > child; i--)
                 CHILDREN(node)[i+1] = CHILDREN(node)[i];
         NUM_KEYS(node)++;
@@ -296,11 +296,13 @@ bool btree_insert(btree tree, bt_key key, bt_value value){
                 
                 for(int i=NUM_KEYS(new_left); i --> 0;)
                     PAIRS(new_left)[i] = PAIRS(root)[i];
+                // If execution reaches here, root is interior
                 for(int i=NUM_KEYS(new_left)+1; i --> 0;)
                     CHILDREN(new_left)[i] = CHILDREN(root)[i];
 
                 UNLOAD(new_left_id);
                 
+                NUM_KEYS(root) = 1;
                 PAIRS(root)[0] = split.pair;
                 CHILDREN(root)[0] = new_left_id;
                 CHILDREN(root)[1] = split.new_node_id;
