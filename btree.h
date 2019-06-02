@@ -62,10 +62,10 @@ bt_value btree_get(btree, bt_key, bool *success);
 // Retrieves the corresponding value or return default_value if not found.
 bt_value btree_get_or_default(btree, bt_key, bt_value default_value);
 
-// Traverses tree, calling callback() with each element and params
-// and storing back the return value.
-void btree_traverse(btree, 
-        bt_value(*callback)(bt_key, bt_value, void*),
+// Traverses tree, calling callback() with a pointer to each element and params.
+// If callback return true, end traversal early and return true, else return false.
+bool btree_traverse(btree, 
+        bool (*callback)(bt_key, bt_value*, void*),
         void* params, bool reverse);
 
 // Remove the key from the tree, return true if the tree did contain it, else false.
@@ -132,9 +132,11 @@ bt_alloc_ptr btree_load_file_alloc_single(FILE *file);
 // Creates a new allocator that keeps trees in a file.
 // Trees (or other data) already present there will be overriden.
 // Can be freed with free().
-bt_alloc_ptr btree_new_file_alloc_multi(FILE *file);
+// A small amount of data, e.g a bt_node_id, can be stored alongside the allocator,
+// and a pointer to it will be stored in the location userdata points to.
+bt_alloc_ptr btree_new_file_alloc_multi(FILE *file, uint8_t **userdata, int userdata_size);
 
 // Loads the allocator created with bt_new_file_alloc_multi() from file
-bt_alloc_ptr btree_load_file_alloc_multi(FILE *file);
+bt_alloc_ptr btree_load_file_alloc_multi(FILE *file, uint8_t **userdata);
 
 #endif

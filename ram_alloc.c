@@ -7,7 +7,8 @@ static void tree_created(btree tree){}
 
 // Allcate space
 static bt_node_id new(void *this){
-    // Maybe request memory aligned memory if power of 2?
+    // Replacing this with mmap(MAP_32BIT) would allow bt_nodes_id
+    // to be 32 bit instead of 64
     return (bt_node_id)malloc(((bt_alloc_ptr)this)->node_size);
 }
 

@@ -17,10 +17,9 @@ typedef void bt_node;
 // Inserting/deleting keys/values/children is O(MAX_KEYS),
 // so maybe use binary tree in array representation instead of array?
 // Would be more complex though.
-// TODO: worry about alignment
 // TODO: Allow variable datatype sizes (including bt_node_id)
-// Currently this could cause problems with alignment, which will be fixed
-// if datatypes are represented as variable length char arrays.
+// by treating keys&values as raw byte strings and passing them
+// by pointer instead of by value.
 /// Node structure
 /*  int16_t   num_keys
  *  int16_t   max_keys
@@ -70,6 +69,16 @@ typedef struct {
 # define NEW_NODE() (tree.alloc->new(tree.alloc))
 # define FREE(node_id) (tree.alloc->free(tree.alloc, node_id))
 # define NOTIFY_DELETED() (tree.alloc->tree_deleted(tree))
+
+/**  Temporary functions to aid in debugging as gdb can't see makros */
+/*********************************************************************/
+/**/ int16_t numkeys(bt_node *node) {return NUM_KEYS(node);}
+/**/ int16_t maxkeys(bt_node *node) {return MAX_KEYS(node);}
+/**/ int16_t minkeys(bt_node *node) {return MIN_KEYS(node);}
+/**/ bt_pair *pairs(bt_node *node) {return PAIRS(node);}
+/**/ bt_node_id *children(bt_node *node) {return CHILDREN(node);}
+/**/ bt_node *root(btree_data *tree_data) {return ROOT(tree_data);}
+/*********************************************************************/
 
 
 
@@ -342,8 +351,8 @@ bt_value btree_get_or_default(btree tree, bt_key key, bt_value alt){
 
 
 
-static void traverse(btree tree, bt_node *node,
-        bt_value(*callback)(bt_key, bt_value, void*),
+static bool traverse(btree tree, bt_node *node,
+        bool (*callback)(bt_key, bt_value*, void*),
         void* id, bool reverse, int height){
     if(!reverse)
         for(int i=0; i <= NUM_KEYS(node); i++){
@@ -354,8 +363,8 @@ static void traverse(btree tree, bt_node *node,
                 UNLOAD(child_id);
             }
             if(i<NUM_KEYS(node))
-                PAIRS(node)[i].value = 
-                    callback(PAIRS(node)[i].key, PAIRS(node)[i].value, id);
+                if(callback(PAIRS(node)[i].key, &PAIRS(node)[i].value, id))
+                    return true;
         }
     else
         for(int i=NUM_KEYS(node)+1; i --> 0;){
@@ -366,18 +375,22 @@ static void traverse(btree tree, bt_node *node,
                 UNLOAD(child_id);
             }
             if(i<NUM_KEYS(node))
-                PAIRS(node)[i].value = 
-                    callback(PAIRS(node)[i].key, PAIRS(node)[i].value, id);
+                if(callback(PAIRS(node)[i].key, &PAIRS(node)[i].value, id))
+                    return true;
         }
+    return false;
 }
 
-void btree_traverse(btree tree, 
-        bt_value(*callback)(bt_key, bt_value, void*),
+bool btree_traverse(btree tree, 
+        bool (*callback)(bt_key, bt_value*, void*),
         void* id, bool reverse){
     btree_data *tree_data = LOAD(tree.root);
+    bool aborted = false;
     if(tree_data->height>=0)
-        traverse(tree, ROOT(tree_data), callback, id, reverse, tree_data->height);
+        aborted = traverse(tree, ROOT(tree_data), callback, 
+                           id, reverse, tree_data->height);
     UNLOAD(tree.root);
+    return aborted;
 }
 
 static bt_pair find_smallest(btree tree, bt_node *node, int height){

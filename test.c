@@ -11,12 +11,12 @@ struct mark_occurences {
     int count;
 };
 
-bt_value occurence_callback(bt_key key, bt_value value, void *params){
+bool occurence_callback(bt_key key, bt_value *value, void *params){
     struct mark_occurences *data = params;
     for(int i = data->count; i --> 0;)
         if(key == data->keys[i])
             data->occurences[i]++;
-    return value;
+    return false;
 }
 
 typedef struct {
@@ -24,7 +24,7 @@ typedef struct {
     bt_key last_key;
 } order_helper;
 
-bt_value order_callback(bt_key key, bt_value value, void *params){
+bool order_callback(bt_key key, bt_value *value, void *params){
     order_helper *par = (order_helper*) params;
     if(par->last_key>=key){
         printf("TEST FAILED:\nKey %x appeared before key %x\n",
@@ -33,16 +33,16 @@ bt_value order_callback(bt_key key, bt_value value, void *params){
         exit(1);
     }
     par->last_key = key;
-    return value;
+    return false;
 }
 
-bt_value value_callback(bt_key key, bt_value value, void *params){
-    if(key!=(bt_key)value){
-        printf("TEST FAILED:\nKey %x has value %x\n", key, value);
+bool value_callback(bt_key key, bt_value *value, void *params){
+    if(key!=(bt_key)*value){
+        printf("TEST FAILED:\nKey %x has value %x\n", key, *value);
         btree_debug_print(stderr, *(btree*)params, false);
         exit(1);
     }
-    return value;
+    return false;
 }
 
 void test_random(bt_alloc_ptr alloc, int len, float del_chance){
@@ -104,17 +104,29 @@ void test_random(bt_alloc_ptr alloc, int len, float del_chance){
     free(correct);
 }
 
+void debug(){
+    btree tree = btree_create(btree_new_ram_alloc(200), 0);
+    for(int i = 1; i < 40; i++){
+        printf("Iteration %d\n", i);
+        btree_insert(tree, i, i);
+        btree_debug_print(stdout, tree, false);
+    }
+    exit(0);
+}
+
 int main(void){
     //time_t t;
     //srand((unsigned) time(&t));
     srand(1);
     
+    debug();
+
     bt_alloc_ptr alloc = btree_new_ram_alloc(300);
     for(float del_chance = 0.1; del_chance < 0.6; del_chance += 0.1)
         for(int a = 3000; a --> 0;){
             printf("# Del chance %f, iteration %d\n", del_chance, 3000-a);
             test_random(alloc, 40, 0.25);
-//            test_random(alloc, 400, 0.25);
+            test_random(alloc, 400, 0.25);
         }
 
     return 0;
