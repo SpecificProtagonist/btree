@@ -264,27 +264,47 @@ bool btree_insert(btree tree, bt_key key, bt_value value){
                 (bt_pair){.key=key, .value=value}, tree_data->height);
         if(split.new_node_id){
             bt_node *new_node = LOAD(split.new_node_id);
-            // Root node is smaller than others, therefore we can't
+            // Root node may be smaller than others, in which case we can't
             // split it (resulting nodes would be below their min_keys).
-            // Instead, move root node data into the new node
-            // and make that a child of the root (root will have 0 keys).
-            for(int i=NUM_KEYS(new_node); i --> 0;)
-                PAIRS(split.new_node_id)[i+NUM_KEYS(root)+1]
-                    = PAIRS(new_node)[i];
-            PAIRS(new_node)[NUM_KEYS(root)] = split.pair;
-            for(int i=NUM_KEYS(root); i --> 0;)
-                PAIRS(new_node)[i] = PAIRS(root)[i];
-            if(tree_data->height){
-                for(int i=NUM_KEYS(new_node)+1; i --> 0;)
-                    CHILDREN(new_node)[i+NUM_KEYS(root)+1]
-                        = CHILDREN(new_node)[i];
-                for(int i=NUM_KEYS(root)+1; i --> 0;)
-                    CHILDREN(new_node)[i] = CHILDREN(root)[i];
+            if(MAX_KEYS(root)<MAX_KEYS(new_node)){
+                // In that case move root node data into the new node
+                // and make that a child of the root (root will have 0 keys).
+                for(int i=NUM_KEYS(new_node); i --> 0;)
+                    PAIRS(new_node)[i+NUM_KEYS(root)+1]
+                        = PAIRS(new_node)[i];
+                PAIRS(new_node)[NUM_KEYS(root)] = split.pair;
+                for(int i=NUM_KEYS(root); i --> 0;)
+                    PAIRS(new_node)[i] = PAIRS(root)[i];
+                if(tree_data->height){
+                    for(int i=NUM_KEYS(new_node)+1; i --> 0;)
+                        CHILDREN(new_node)[i+NUM_KEYS(root)+1]
+                            = CHILDREN(new_node)[i];
+                    for(int i=NUM_KEYS(root)+1; i --> 0;)
+                        CHILDREN(new_node)[i] = CHILDREN(root)[i];
+                }
+                
+                NUM_KEYS(new_node) += NUM_KEYS(root)+1;
+                NUM_KEYS(root) = 0;
+                CHILDREN(root)[0] = split.new_node_id;
+            } else {
+                // If that is not the case, move the previous root out
+                // and store both nodes in the new root
+                bt_node_id new_left_id = NEW_NODE();
+                bt_node *new_left = LOAD(new_left_id);
+                NUM_KEYS(new_left) = NUM_KEYS(root);
+                MAX_KEYS(new_left) = MAX_KEYS(root);
+                
+                for(int i=NUM_KEYS(new_left); i --> 0;)
+                    PAIRS(new_left)[i] = PAIRS(root)[i];
+                for(int i=NUM_KEYS(new_left)+1; i --> 0;)
+                    CHILDREN(new_left)[i] = CHILDREN(root)[i];
+
+                UNLOAD(new_left_id);
+                
+                PAIRS(root)[0] = split.pair;
+                CHILDREN(root)[0] = new_left_id;
+                CHILDREN(root)[1] = split.new_node_id;
             }
-            
-            NUM_KEYS(new_node) += NUM_KEYS(root)+1;
-            NUM_KEYS(root) = 0;
-            CHILDREN(root)[0] = split.new_node_id;
 
             UNLOAD(split.new_node_id);
             tree_data->height++;
@@ -576,7 +596,7 @@ bool btree_remove(btree tree, bt_key key){
         if(NUM_KEYS(root)==0){
             bt_node_id proxied_root_id = CHILDREN(root)[0];
             bt_node *proxied_root = LOAD(proxied_root_id);
-            found = remove_key(tree, proxied_root, key, tree_data->height);
+            found = remove_key(tree, proxied_root, key, tree_data->height-1);
             
             // If the actual root now fits into the tree root again,
             // its data can be moved there
@@ -677,7 +697,7 @@ void btree_debug_print(FILE *stream, btree tree, bool print_value){
             bt_node_id proxied_root_id = CHILDREN(root)[0];
             bt_node *proxied_root = LOAD(proxied_root_id);
             debug_print(tree, stream, proxied_root, print_value,
-                    tree_data->height, tree_data->height, "", 0, 0);
+                    tree_data->height-1, tree_data->height-1, "", 0, 0);
             UNLOAD(proxied_root_id);
         } else {
             debug_print(tree, stream, root, print_value,
