@@ -20,7 +20,7 @@ bt_value occurence_callback(bt_key key, bt_value value, void *params){
 }
 
 typedef struct {
-    btree *tree;
+    btree tree;
     bt_key last_key;
 } order_helper;
 
@@ -39,14 +39,15 @@ bt_value order_callback(bt_key key, bt_value value, void *params){
 bt_value value_callback(bt_key key, bt_value value, void *params){
     if(key!=(bt_key)value){
         printf("TEST FAILED:\nKey %x has value %x\n", key, value);
-        btree_debug_print(stderr, (btree*)params, false);
+        btree_debug_print(stderr, *(btree*)params, false);
         exit(1);
     }
     return value;
 }
 
-void test_random(int len, float del_chance){
-    btree *tree = btree_new();
+void test_random(bt_alloc_ptr alloc, int len, float del_chance){
+    // TODO: test userdata storage
+    btree tree = btree_create(alloc, 0);
 
     // Create random tree
     bt_key *keys = calloc(sizeof(bt_key), len);
@@ -57,10 +58,12 @@ void test_random(int len, float del_chance){
         bt_key key = rand()%(3*len) + 1;
         bool delete = ((float)rand())/(float)RAND_MAX < del_chance;
         ops[i] = delete;
+        printf("%s %d\n", delete?"Deleting":"Inserting", key);
         if(delete)
-            btree_delete(tree, key);
+            btree_remove(tree, key);
         else
             btree_insert(tree, key, key);
+        btree_debug_print(stdout, tree, true);
         keys[i] = key;
         for(int j = 0; j<=i; j++) if(keys[j]==key)
                 correct[j] = 1-delete;
@@ -92,24 +95,26 @@ void test_random(int len, float del_chance){
     btree_traverse(tree, order_callback, order, false);
 
     // Check that each value is preserved
-    btree_traverse(tree, value_callback, tree, false);
+    btree_traverse(tree, value_callback, &tree, false);
     
 
-    btree_free(tree);
+    btree_delete(tree);
     free(keys);
     free(occurences);
     free(correct);
 }
 
 int main(void){
-    time_t t;
-    srand((unsigned) time(&t));
-    //srand(1);
+    //time_t t;
+    //srand((unsigned) time(&t));
+    srand(1);
     
+    bt_alloc_ptr alloc = btree_new_ram_alloc(300);
     for(float del_chance = 0.1; del_chance < 0.6; del_chance += 0.1)
         for(int a = 3000; a --> 0;){
-            test_random(40, 0.25);
-            test_random(400, 0.25);
+            printf("# Del chance %f, iteration %d\n", del_chance, 3000-a);
+            test_random(alloc, 40, 0.25);
+//            test_random(alloc, 400, 0.25);
         }
 
     return 0;

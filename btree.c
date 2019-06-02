@@ -22,8 +22,8 @@ typedef void bt_node;
 // Currently this could cause problems with alignment, which will be fixed
 // if datatypes are represented as variable length char arrays.
 /// Node structure
-/*  uint16_t   num_keys
- *  uint16_t   max_keys
+/*  int16_t   num_keys
+ *  int16_t   max_keys
  *  bt_pair    pairs[max_keys]
  * // only in interior nodes:
  *  bt_node_id children[max_keys+1]
@@ -79,21 +79,22 @@ typedef struct {
  *************/
 
 btree btree_create(bt_alloc_ptr alloc, uint16_t userdata_size){
-    bt_node_id tree_node = alloc->new(alloc);
-    btree tree = (btree){alloc, tree_node};
-    btree_data *tree_data = alloc->load(tree, tree_node);
-    tree_data->height = 0;
+    bt_node_id tree_node_id = alloc->new(alloc);
+    btree tree = (btree){alloc, tree_node_id};
+    btree_data *tree_data = LOAD(tree_node_id);
+    tree_data->height = -1;
     // Calculate how many keys will fit in each type of node
     // TODO: check correctness, esp. in regards to padding
     tree_data->max_interior_keys = (alloc->node_size-32)
-                            / (sizeof(struct{bt_pair a; void* b;})) - 1;
+                            / (sizeof(bt_pair)+sizeof(void*)) - 1;
     tree_data->max_leaf_keys = (alloc->node_size-32) / sizeof(bt_pair) - 1;
-    uint16_t max_root_keys = (alloc->node_size-32-userdata_size)
-                           / (sizeof(struct{bt_pair a; void* b;})) - 1;
+    uint16_t max_root_keys = (alloc->node_size-32-sizeof(btree_data)-userdata_size)
+                           / (sizeof(bt_pair)+sizeof(void*)) - 1;
+    tree_data->root_offset = tree_data->userdata+userdata_size-(char*)tree_data+1;
     // TODO checks that e.g. there is enough space for root
-    // TODO root node in same page (→ also tree->height==-1 instead of !tree->root)
-    // maybe also store allocator-specific data
-    alloc->unload(tree, tree_node);
+    NUM_KEYS(ROOT(tree_data)) = 0;
+    MAX_KEYS(ROOT(tree_data)) = max_root_keys;
+    UNLOAD(tree_node_id);
     return tree;
 }
 
@@ -271,7 +272,8 @@ bool btree_insert(btree tree, bt_key key, bt_value value){
                 for(int i=NUM_KEYS(root)+1; i --> 0;)
                     CHILDREN(new_node)[i] = CHILDREN(root)[i];
             }
-
+            
+            NUM_KEYS(new_node) += NUM_KEYS(root)+1;
             NUM_KEYS(root) = 0;
             CHILDREN(root)[0] = split.new_node_id;
 
@@ -559,22 +561,22 @@ bool btree_remove(btree tree, bt_key key){
         // In that case we have to remove_key() from that instead
         // as a sibling is required for merging.
         if(NUM_KEYS(root)==0){
-            bt_node_id actual_root_id = CHILDREN(root)[0];
-            bt_node *actual_root = LOAD(actual_root_id);
-            found = remove_key(tree, actual_root, key, tree_data->height);
+            bt_node_id proxied_root_id = CHILDREN(root)[0];
+            bt_node *proxied_root = LOAD(proxied_root_id);
+            found = remove_key(tree, proxied_root, key, tree_data->height);
             
             // If the actual root now fits into the tree root again,
             // its data can be moved there
-            if(NUM_KEYS(actual_root)==MAX_KEYS(root)){
+            if(NUM_KEYS(proxied_root)==MAX_KEYS(root)){
                 NUM_KEYS(root) = MAX_KEYS(root);
                 for(int i=NUM_KEYS(root); i --> 0;)
-                    PAIRS(root)[i] = PAIRS(actual_root)[i];
+                    PAIRS(root)[i] = PAIRS(proxied_root)[i];
                 if(tree_data->height > 1)
                     for(int i=NUM_KEYS(root)+1; i --> 0;)
-                        CHILDREN(root)[i] = CHILDREN(actual_root)[i];
-                FREE(actual_root_id);
+                        CHILDREN(root)[i] = CHILDREN(proxied_root)[i];
+                FREE(proxied_root_id);
             } else {
-                UNLOAD(actual_root_id);
+                UNLOAD(proxied_root_id);
             }
         } else {
             found = remove_key(tree, root, key, tree_data->height); 
@@ -656,9 +658,20 @@ static void debug_print(btree tree, FILE *stream, bt_node* node, bool print_valu
 
 void btree_debug_print(FILE *stream, btree tree, bool print_value){
     btree_data *tree_data = LOAD(tree.root);
-    if(tree_data->height >= 0)
-        debug_print(tree, stream, ROOT(tree_data), print_value, tree_data->height, tree_data->height, "", 0, 0);
-    else
+    if(tree_data->height >= 0){
+        bt_node *root = ROOT(tree_data);
+        if(NUM_KEYS(root)==0){
+            bt_node_id proxied_root_id = CHILDREN(root)[0];
+            bt_node *proxied_root = LOAD(proxied_root_id);
+            debug_print(tree, stream, proxied_root, print_value,
+                    tree_data->height, tree_data->height, "", 0, 0);
+            UNLOAD(proxied_root_id);
+        } else {
+            debug_print(tree, stream, root, print_value,
+                    tree_data->height, tree_data->height, "", 0, 0);
+        }
+    }  else {
         puts("(empty)");
+    }
     UNLOAD(tree.root);
 }
