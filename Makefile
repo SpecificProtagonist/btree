@@ -13,8 +13,7 @@ CFLAGS = -g -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno
 
 # Build static library, there's no reason for a shared lib
 static: build/btree.o build/ram_alloc.o build/file_alloc_single.o build/file_alloc_multi.o
-	@$(CC) $(CFLAGS) btree.c -c -o build/btree.o
-	@ar rcs build/libbtree.a build/btree.o
+	@ar rcs build/libbtree.a $^
 
 test:
 	@make -s _test VALUE_TYPE=uint32_t
