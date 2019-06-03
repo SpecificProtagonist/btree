@@ -6,12 +6,6 @@
  * DATATYPES *
  *************/
 
-// Represents a keys-value pair
-typedef struct {
-    bt_key key;
-    bt_value value;
-} bt_pair;
-
 typedef void bt_node;
 
 // Inserting/deleting keys/values/children is O(MAX_KEYS),
@@ -23,7 +17,7 @@ typedef void bt_node;
 /// Node structure
 /*  int16_t   num_keys
  *  int16_t   max_keys
- *  bt_pair    pairs[max_keys]
+ *  {key, value}    pairs[max_keys]
  * // only in interior nodes:
  *  bt_node_id children[max_keys+1]
  */
@@ -42,6 +36,9 @@ typedef struct {
     uint16_t max_leaf_keys;
     // Height of the tree. -1 Means empty tree, 0 means the root is a leaf.
     int8_t height;
+    // Size of key & value datatypes in bytes
+    uint8_t keys_size;
+    uint8_t value_size;
     // Custom data (variable length) stored alongside tree
     char userdata[1];
 } btree_data;
@@ -363,12 +360,6 @@ bt_value btree_get(btree tree, bt_key key, bool *success){
         UNLOAD(tree.root);
         return (bt_value){0};
     }
-}
-
-bt_value btree_get_or_default(btree tree, bt_key key, bt_value alt){
-    bool success;
-    bt_value value = btree_get(tree, key, &success);
-    return success ? value : alt;
 }
 
 

@@ -13,22 +13,6 @@
 // The key and value types must be known at compile time.
 // A way around this would be combining makro with storing 
 // the size of both types in the struct btree.
-typedef
-#ifdef BT_KEY_TYPE
-    BT_KEY_TYPE
-#else
-    uint32_t
-#endif
-bt_key;
-
-typedef
-#ifdef BT_VALUE_TYPE
-    BT_VALUE_TYPE
-#else
-    void*
-#endif
-bt_value;
-
 typedef struct btree btree;
 
 typedef struct bt_alloc *bt_alloc_ptr;
@@ -39,7 +23,7 @@ typedef struct bt_alloc *bt_alloc_ptr;
 // Creates a new b-tree from the given allocator.
 // userdata_size specifies the size of custom data (if any) stored along
 // side the tre (should be much smaller than the allocators node_size).
-btree btree_create(bt_alloc_ptr, uint16_t userdata_size);
+btree btree_create(bt_alloc_ptr, uint8_t key_size, uint8_t value_size, uint16_t userdata_size);
 
 // Gets a pointer to the userdata stored alongside the tree.
 // This doesn't have a guaranteed alignment.
@@ -50,26 +34,23 @@ void btree_unload_userdata(btree);
 
 // Inserts the key and corresponding value, 
 // returns true if key was already present.
-bool btree_insert(btree, bt_key, bt_value);
+bool btree_insert(btree, void *key, void *value);
 
 // Checks whether the tree contains the key
-bool btree_contains(btree, bt_key);
+bool btree_contains(btree, void *key);
 
-// Retrieves the corresponding value.
+// Retrieves the corresponding value and, if found, stores it in *value.
 // If success is not null, stores whether the key was found.
-bt_value btree_get(btree, bt_key, bool *success);
+void tree_get(btree, void *key, void *value, bool *success);
 
-// Retrieves the corresponding value or return default_value if not found.
-bt_value btree_get_or_default(btree, bt_key, bt_value default_value);
-
-// Traverses tree, calling callback() with a pointer to each element and params.
+// Traverses tree, calling callback() with a pointer to each key&value and params.
 // If callback return true, end traversal early and return true, else return false.
 bool btree_traverse(btree, 
-        bool (*callback)(bt_key, bt_value*, void*),
+        bool (*callback)(void *key, void *value, void *param),
         void* params, bool reverse);
 
 // Remove the key from the tree, return true if the tree did contain it, else false.
-bool btree_remove(btree, bt_key);
+bool btree_remove(btree, void *key);
 
 // Deletes a tree
 void btree_delete(btree);
