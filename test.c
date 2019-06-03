@@ -45,7 +45,7 @@ bool value_callback(bt_key key, bt_value *value, void *params){
     return false;
 }
 
-void test_random(bt_alloc_ptr alloc, int len, float del_chance){
+void test_random(bt_alloc_ptr alloc, int len, float del_chance, bool debug){
     // TODO: test userdata storage
     btree tree = btree_create(alloc, 0);
 
@@ -58,12 +58,14 @@ void test_random(bt_alloc_ptr alloc, int len, float del_chance){
         bt_key key = rand()%(3*len) + 1;
         bool delete = ((float)rand())/(float)RAND_MAX < del_chance;
         ops[i] = delete;
-        printf("%s %d\n", delete?"Deleting":"Inserting", key);
+        if(debug)
+            printf("%d | %s %x (%d)\n", i, delete?"Deleting":"Inserting", key, key);
         if(delete)
             btree_remove(tree, key);
         else
             btree_insert(tree, key, key);
-        btree_debug_print(stdout, tree, true);
+        if(debug)
+            btree_debug_print(stdout, tree, false);
         keys[i] = key;
         for(int j = 0; j<=i; j++) if(keys[j]==key)
                 correct[j] = 1-delete;
@@ -106,27 +108,30 @@ void test_random(bt_alloc_ptr alloc, int len, float del_chance){
 
 void debug(){
     btree tree = btree_create(btree_new_ram_alloc(200), 0);
-    for(int i = 1; i < 40; i++){
+    for(int i = 1; i < 5; i++){
         printf("Iteration %d\n", i);
         btree_insert(tree, i, i);
         btree_debug_print(stdout, tree, false);
     }
+    printf("Removing 3\n");
+    btree_remove(tree, 3);
+    btree_debug_print(stdout, tree, false);
     exit(0);
 }
 
 int main(void){
     //time_t t;
     //srand((unsigned) time(&t));
-    srand(1);
+    srand(2);
     
-    debug();
+//    debug();
 
-    bt_alloc_ptr alloc = btree_new_ram_alloc(300);
+    bt_alloc_ptr alloc = btree_new_ram_alloc(140);
     for(float del_chance = 0.1; del_chance < 0.6; del_chance += 0.1)
-        for(int a = 3000; a --> 0;){
-            printf("# Del chance %f, iteration %d\n", del_chance, 3000-a);
-            test_random(alloc, 40, 0.25);
-            test_random(alloc, 400, 0.25);
+        for(int a = 1; a < 3000; a++){
+//            printf("# Del chance %f, iteration %d\n", del_chance, a);
+            test_random(alloc, 400, del_chance, a==869);
+//            test_random(alloc, 400, 0.25);
         }
 
     return 0;

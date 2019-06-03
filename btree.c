@@ -610,6 +610,7 @@ bool btree_remove(btree tree, bt_key key){
                     for(int i=NUM_KEYS(root)+1; i --> 0;)
                         CHILDREN(root)[i] = CHILDREN(proxied_root)[i];
                 FREE(proxied_root_id);
+                tree_data->height--;
             } else {
                 UNLOAD(proxied_root_id);
             }
