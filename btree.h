@@ -8,16 +8,11 @@
 // B-Trees are balanced trees, typicaly with a high fanout,
 // often used for file systems and other databases.
 
-// This implementation offers no multithreading support.
-
-// The key and value types must be known at compile time.
-// A way around this would be combining makro with storing 
-// the size of both types in the struct btree.
 typedef struct btree btree;
-
 typedef struct bt_alloc *bt_alloc_ptr;
 
-
+// The following functions are multithreading safe only if no simultaneous
+// operations are performed on btrees created with the same allocator
 
 
 // Creates a new b-tree from the given allocator.
