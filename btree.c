@@ -64,7 +64,7 @@ typedef struct {
 # define MIN_KEYS(node) (MAX_KEYS(node)/2)
 # define PAIRS(node)    ((void*)((int16_t*)node+2))
 # define PAIR(node, i)  ((uint8_t*)PAIRS(node)+(i)*tree.pair_size)
-# define VALUE(pair) (pair+tree.key_size)
+# define VALUE(pair)    (pair+tree.key_size)
 # define CHILDREN(node) ((bt_node_id*)(((char*)PAIRS(node))\
                             +tree.pair_size*MAX_KEYS(node)))
 # define CHILD(node, i) ((uint8_t*)CHILDREN(node)+(i)*sizeof(bt_node_id))
@@ -172,16 +172,16 @@ static bool insert(tree_param tree, bt_node *node, uint8_t *pair, int height, vo
     }
     bt_node_id new_node_id = 0;
     int child = index/2;
+    uint8_t child_split_pair[tree.pair_size];
     if(height){
         bt_node_id child_id = CHILDREN(node)[child];
         bt_node *child_node = LOAD(child_id);
-        uint8_t split_pair[tree.pair_size];
         bool present = insert(tree, child_node, pair, height-1, 
-                              split_pair, &new_node_id);
+                              child_split_pair, &new_node_id);
         UNLOAD(child_id);
         if(!new_node_id)
             return present;
-        pair = split_pair;
+        pair = child_split_pair;
     }
     if(NUM_KEYS(node) < MAX_KEYS(node)){
         // enough room, insert new child
@@ -268,7 +268,7 @@ bool btree_insert(btree b_tree, void *key, void *value){
     bt_node *root = ROOT(tree_data);
     uint8_t pair[tree.pair_size];
     memcpy(pair, key, tree.key_size);
-    memcpy(pair+tree.pair_size, value, tree.pair_size-tree.key_size);
+    memcpy(pair+tree.key_size, value, tree.pair_size-tree.key_size);
     if(tree_data->height==-1){
         // Tree is empty
         tree_data->height = 0;
@@ -562,11 +562,11 @@ static bool remove_key(tree_param tree, bt_node *node, void *key, int height){
                         left_index = child_index - 1;
                     }
                     
-                    // Merge into left
+                    // Merge right into left
                     memcpy(PAIR(left, NUM_KEYS(left)), PAIR(node, left_index),
                            tree.pair_size);
                     memmove(PAIR(node, left_index), PAIR(node, left_index+1),
-                            NUM_KEYS(node)*tree.pair_size);
+                            (NUM_KEYS(node)-left_index)*tree.pair_size);
                     for(int i = left_index+1; i < NUM_KEYS(node); i++)
                         CHILDREN(node)[i] = CHILDREN(node)[i+1];
                     memmove(PAIR(left, NUM_KEYS(left)+1), PAIRS(right),
@@ -697,7 +697,7 @@ static void debug_print(tree_param tree, FILE *stream, bt_node* node, bool print
             if(print_value){
                 fputs(" → ", stream);
                 for(int j = 0; j < tree.key_size; j++)
-                    fprintf(stream, "%02x", *((uint8_t*)PAIR(node, i)+j));
+                    fprintf(stream, "%02x", *((uint8_t*)PAIR(node, i)+tree.key_size+j));
             }
             fputs("\n", stream);
         }
