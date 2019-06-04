@@ -63,11 +63,11 @@ typedef struct {
 # define MAX_KEYS(node) (*((int16_t*)node+1))
 # define MIN_KEYS(node) (MAX_KEYS(node)/2)
 # define PAIRS(node)    ((void*)((int16_t*)node+2))
-# define PAIR(node, i)  ((uint8_t*)PAIRS(node)+i*tree.pair_size)
+# define PAIR(node, i)  ((uint8_t*)PAIRS(node)+(i)*tree.pair_size)
 # define VALUE(pair) (pair+tree.key_size)
 # define CHILDREN(node) ((bt_node_id*)(((char*)PAIRS(node))\
                             +tree.pair_size*MAX_KEYS(node)))
-# define CHILD(node, i) ((uint8_t*)CHILDREN(node)+i*sizeof(bt_node_id))
+# define CHILD(node, i) ((uint8_t*)CHILDREN(node)+(i)*sizeof(bt_node_id))
 
 # define ROOT(tree_data) ((bt_node*)((char*)tree_data+tree_data->root_offset))
 
@@ -85,7 +85,8 @@ typedef struct {
 /**/ int16_t maxkeys(bt_node *node) {return MAX_KEYS(node);}
 /**/ int16_t minkeys(bt_node *node) {return MIN_KEYS(node);}
 /**/ uint8_t *pairs(bt_node *node) {return PAIRS(node);}
-/**/ uint8_t *pair(tree_param tree, bt_node *node, int i) {return PAIR(node, i);}
+/**/ uint32_t pair(tree_param tree, bt_node *node, int i)
+/**/          {return *(uint32_t*)PAIR(node, i);}
 /**/ bt_node_id *children(tree_param tree, bt_node *node) {return CHILDREN(node);}
 /**/ bt_node *root(btree_data *tree_data) {return ROOT(tree_data);}
 /*********************************************************************/
@@ -169,20 +170,18 @@ static bool insert(tree_param tree, bt_node *node, uint8_t *pair, int height, vo
         memcpy(PAIR(node, index/2), VALUE(pair), tree.pair_size-tree.key_size);
         return true;
     }
-    bt_node_id new_node = 0;
+    bt_node_id new_node_id = 0;
     int child = index/2;
     if(height){
         bt_node_id child_id = CHILDREN(node)[child];
         bt_node *child_node = LOAD(child_id);
         uint8_t split_pair[tree.pair_size];
-        bt_node_id split_node_id = 0;
         bool present = insert(tree, child_node, pair, height-1, 
-                              split_pair, &split_node_id);
+                              split_pair, &new_node_id);
         UNLOAD(child_id);
-        if(!split_node_id)
+        if(!new_node_id)
             return present;
         pair = split_pair;
-        new_node = split_node_id;
     }
     if(NUM_KEYS(node) < MAX_KEYS(node)){
         // enough room, insert new child
@@ -194,7 +193,7 @@ static bool insert(tree_param tree, bt_node *node, uint8_t *pair, int height, vo
         NUM_KEYS(node)++;
         memcpy(PAIR(node, child), pair, tree.pair_size);
         if(height)
-            CHILDREN(node)[child+1] = new_node;
+            CHILDREN(node)[child+1] = new_node_id;
         return true;
     } else {
         // Node full
@@ -218,7 +217,7 @@ static bool insert(tree_param tree, bt_node *node, uint8_t *pair, int height, vo
             memmove(PAIRS(right), PAIR(node, NUM_KEYS(node)),
                     tree.pair_size*NUM_KEYS(right));
             if(height)
-                CHILDREN(right)[0] = new_node;
+                CHILDREN(right)[0] = new_node_id;
             if(height)
                 for(int i = MAX_KEYS(node)+1; i --> NUM_KEYS(node)+1;)
                     CHILDREN(right)[i-NUM_KEYS(node)] = CHILDREN(node)[i];
@@ -237,7 +236,7 @@ static bool insert(tree_param tree, bt_node *node, uint8_t *pair, int height, vo
                     CHILDREN(node)[i+1] = CHILDREN(node)[i];
             memcpy(PAIR(node, child), pair, tree.pair_size);
             if(height)
-                CHILDREN(node)[child+1] = new_node;
+                CHILDREN(node)[child+1] = new_node_id;
         } else {
             // Key in right node
             memcpy(median, PAIR(node, NUM_KEYS(node)), tree.pair_size);
@@ -248,8 +247,8 @@ static bool insert(tree_param tree, bt_node *node, uint8_t *pair, int height, vo
                     CHILDREN(right)[i-NUM_KEYS(node)-1] = CHILDREN(node)[i];
             memcpy(PAIR(right, child-NUM_KEYS(node)-1), pair, tree.pair_size);
             if(height)
-                CHILDREN(right)[child-NUM_KEYS(node)] = new_node;
-            memmove(PAIR(node, child-NUM_KEYS(node)), PAIR(node, child),
+                CHILDREN(right)[child-NUM_KEYS(node)] = new_node_id;
+            memmove(PAIR(right, child-NUM_KEYS(node)), PAIR(node, child),
                     tree.pair_size*(MAX_KEYS(node)-child));
             if(height)
                 for(int i = MAX_KEYS(node)+1; i --> child+1;)
@@ -257,7 +256,7 @@ static bool insert(tree_param tree, bt_node *node, uint8_t *pair, int height, vo
         }
         //TODO: eliminate this memcpy
         memcpy(split_pair, median, tree.pair_size);
-        *split_new_node_id = right_id;
+        *split_new_node_id = right_id;   //Unload?
         return false;
     }
 }
@@ -285,26 +284,48 @@ bool btree_insert(btree b_tree, void *key, void *value){
                 pair, tree_data->height, split_pair, &split_id);
         if(split_id){
             bt_node *new_node = LOAD(split_id);
-            // Root node is smaller than others, so we can't
-            // split it (resulting nodes would be below their min_keys).
-            // Therefore move root node data into the new node
-            // and make that a child of the root (root will have 0 keys).
-            memmove(PAIR(new_node, NUM_KEYS(root)+1), PAIRS(new_node),
-                    NUM_KEYS(new_node)*tree.pair_size);
-            memcpy(PAIR(new_node, NUM_KEYS(root)), split_pair, tree.pair_size);
-            memmove(PAIRS(new_node), PAIRS(root),
-                    NUM_KEYS(root)*tree.pair_size);
-            if(tree_data->height){
-                for(int i=NUM_KEYS(new_node)+1; i --> 0;)
-                    CHILDREN(new_node)[i+NUM_KEYS(root)+1]
-                        = CHILDREN(new_node)[i];
-                for(int i=NUM_KEYS(root)+1; i --> 0;)
-                    CHILDREN(new_node)[i] = CHILDREN(root)[i];
-            }
             
-            NUM_KEYS(new_node) += NUM_KEYS(root)+1;
-            NUM_KEYS(root) = 0;
-            CHILDREN(root)[0] = split_id;
+            // Root node may be smaller than others, in which case we can't
+            // split it (resulting nodes would be below their min_keys).
+            if(MAX_KEYS(root)<MAX_KEYS(new_node)){
+                // In that case move root node data into the new node
+				// and make that a child of the root (root will have 0 keys).
+				memmove(PAIR(new_node, NUM_KEYS(root)+1), PAIRS(new_node),
+						NUM_KEYS(new_node)*tree.pair_size);
+				memcpy(PAIR(new_node, NUM_KEYS(root)), split_pair, tree.pair_size);
+				memmove(PAIRS(new_node), PAIRS(root),
+						NUM_KEYS(root)*tree.pair_size);
+				if(tree_data->height){
+					for(int i=NUM_KEYS(new_node)+1; i --> 0;)
+						CHILDREN(new_node)[i+NUM_KEYS(root)+1]
+							= CHILDREN(new_node)[i];
+					for(int i=NUM_KEYS(root)+1; i --> 0;)
+						CHILDREN(new_node)[i] = CHILDREN(root)[i];
+				}
+				
+				NUM_KEYS(new_node) += NUM_KEYS(root)+1;
+				NUM_KEYS(root) = 0;
+				CHILDREN(root)[0] = split_id;
+			} else {
+                // If that is not the case, move the previous root out
+                // and store both nodes in the new root
+                bt_node_id new_left_id = NEW_NODE();
+                bt_node *new_left = LOAD(new_left_id);
+                NUM_KEYS(new_left) = NUM_KEYS(root);
+                MAX_KEYS(new_left) = MAX_KEYS(root);
+                
+				memmove(PAIRS(new_left), PAIRS(root), NUM_KEYS(new_left)*tree.pair_size);
+                // If execution reaches here, root is interior
+                for(int i=NUM_KEYS(new_left)+1; i --> 0;)
+                    CHILDREN(new_left)[i] = CHILDREN(root)[i];
+
+                UNLOAD(new_left_id);
+                
+                NUM_KEYS(root) = 1;
+                memcpy(PAIR(root, 0), split_pair, tree.pair_size);
+                CHILDREN(root)[0] = new_left_id;
+                CHILDREN(root)[1] = split_id;
+			}
 
             UNLOAD(split_id);
             tree_data->height++;
@@ -678,6 +699,7 @@ static void debug_print(tree_param tree, FILE *stream, bt_node* node, bool print
                 for(int j = 0; j < tree.key_size; j++)
                     fprintf(stream, "%02x", *((uint8_t*)PAIR(node, i)+j));
             }
+            fputs("\n", stream);
         }
     }
 }
