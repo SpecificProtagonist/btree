@@ -11,6 +11,27 @@
 typedef struct btree btree;
 typedef struct bt_alloc *bt_alloc_ptr;
 
+
+// Creates a new allocator that keeps each entire trees in RAM,
+// can be freed with free().
+// TODO: recommend default node_size (requires benchmark)
+bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size);
+
+
+// Creates a new allocator that keeps trees in a file.
+// Trees (or other data) already present there will be overriden.
+// Can be freed with free().
+// A small amount of data, e.g a bt_node_id, can be stored alongside the allocator,
+// and a pointer to it will be stored in the location userdata points to.
+bt_alloc_ptr btree_new_file_alloc(FILE *file, uint8_t **userdata, int userdata_size);
+
+// Loads the allocator created with bt_new_file_alloc_multi() from file
+bt_alloc_ptr btree_load_file_alloc(FILE *file, uint8_t **userdata);
+
+
+
+
+
 // The following functions are multithreading safe only if no simultaneous
 // operations are performed on btrees created with the same allocator
 
@@ -61,7 +82,6 @@ void btree_debug_print(FILE *stream, btree, bool print_value);
 
 // Allocators manage memory for b-trees. You can define your own, 
 // but the inbuild ones should be sufficient in most cases.
-// You shouldn't call any member function yourself.
 typedef uint64_t bt_node_id;
 struct bt_alloc {
     // Indicate that a new tree has been created
@@ -88,31 +108,5 @@ struct btree {
     bt_alloc_ptr alloc;
     bt_node_id root;
 };
-
-
-// Creates a new allocator that keeps each entire trees in RAM,
-// can be freed with free().
-// TODO: recommend default node_size (requires benchmark)
-bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size);
-
-// Creates a new allocator that keeps a tree in a file.
-// A tree (or other data) already present there will be overriden.
-// This allocator can only supply a single tree, to create another one
-// the previous one has to be deleted.
-// Can be freed with free().
-bt_alloc_ptr btree_new_file_alloc_single(FILE *file);
-
-// Loads the allocator created with bt_new_file_alloc_single() from file.
-bt_alloc_ptr btree_load_file_alloc_single(FILE *file);
-
-// Creates a new allocator that keeps trees in a file.
-// Trees (or other data) already present there will be overriden.
-// Can be freed with free().
-// A small amount of data, e.g a bt_node_id, can be stored alongside the allocator,
-// and a pointer to it will be stored in the location userdata points to.
-bt_alloc_ptr btree_new_file_alloc_multi(FILE *file, uint8_t **userdata, int userdata_size);
-
-// Loads the allocator created with bt_new_file_alloc_multi() from file
-bt_alloc_ptr btree_load_file_alloc_multi(FILE *file, uint8_t **userdata);
 
 #endif
