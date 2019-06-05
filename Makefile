@@ -16,7 +16,7 @@ release: CFLAGS += -O2
 release: $(addprefix build/release/, $(LIBOBJ))
 	@ar rcs build/release/libbtree.a $^
 
-debug: CFLAGS += -Og -g
+debug: CFLAGS += -g -Og
 debug: $(addprefix build/debug/, $(LIBOBJ))
 	@ar rcs build/debug/libbtree.a $^
 
