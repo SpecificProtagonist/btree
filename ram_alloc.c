@@ -18,7 +18,7 @@ static void *load(btree tree, bt_node_id node){
 }
 
 // Nothing to do, node will stay in RAM
-static void unload(btree tree, bt_node_id node){}
+static void unload(btree tree, void *node){}
 
 // Deallocate node
 static void free_node(void *this, bt_node_id node){

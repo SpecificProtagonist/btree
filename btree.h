@@ -24,10 +24,10 @@ bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size);
 // Can be freed with free().
 // A small amount of data, e.g a bt_node_id, can be stored alongside the allocator,
 // and a pointer to it will be stored in the location userdata points to.
-bt_alloc_ptr btree_new_file_alloc(FILE *file, uint8_t **userdata, int userdata_size);
+bt_alloc_ptr btree_new_file_alloc(int fd, uint8_t **userdata, int userdata_size);
 
 // Loads the allocator created with btree_new_file_alloc() from file
-bt_alloc_ptr btree_load_file_alloc(FILE *file, uint8_t **userdata);
+bt_alloc_ptr btree_load_file_alloc(int fd, uint8_t **userdata);
 
 // To load an existing btree, simply initialize the following structure
 // with the correct values.
@@ -58,7 +58,7 @@ btree btree_create(bt_alloc_ptr, uint8_t key_size, uint8_t value_size,
 void *btree_load_userdata(btree);
 
 // Indicate that the userdata pointer isn't in use anymore
-void btree_unload_userdata(btree);
+void btree_unload_userdata(btree, void *userdata);
 
 // Inserts the key and corresponding value, 
 // returns true if key was already present.
@@ -105,8 +105,8 @@ struct bt_alloc {
     // which means doing nothing in case of bt_ram_allocator.
     void *(*load)(btree, bt_node_id node);
     // Indicate that the node doesn't have to be kept in memory anymore.
-    void (*unload)(btree, bt_node_id node);
-    // Deallocates a node (may be called both when loaded or not)
+    void (*unload)(btree, void *node);
+    // Deallocates a node (may not be called when loaded)
     void (*free)(void* this, bt_node_id node);
     // Indicate that the b-tree has been deleted
     void (*tree_deleted)(btree);

@@ -38,7 +38,7 @@ typedef struct {
     uint8_t key_size;
     uint8_t value_size;
     // Custom data (variable length) stored alongside tree
-    char userdata[1];
+    char userdata;
 } btree_data;
 
 // Small structure passed amoung internal functions,
@@ -71,10 +71,10 @@ typedef struct {
 
 # define ROOT(tree_data) ((bt_node*)((char*)tree_data+tree_data->root_offset))
 
-# define LOAD(node_id) (tree.tree.alloc->load(tree.tree, node_id))
+# define LOAD(node) (tree.tree.alloc->load(tree.tree, node))
 # define LOAD_TREE(b_tree) (b_tree.alloc->load(b_tree, b_tree.root))
-# define UNLOAD(node_id) (tree.tree.alloc->unload(tree.tree, node_id))
-# define UNLOAD_TREE(b_tree) (b_tree.alloc->unload(b_tree, b_tree.root))
+# define UNLOAD(node) (tree.tree.alloc->unload(tree.tree, node))
+# define UNLOAD_TREE(b_tree, tree_data) (b_tree.alloc->unload(b_tree, tree_data))
 # define NEW_NODE() (tree.tree.alloc->new(tree.tree.alloc))
 # define FREE(node_id) (tree.tree.alloc->free(tree.tree.alloc, node_id))
 # define NOTIFY_DELETED() (tree.tree.alloc->tree_deleted(tree.tree))
@@ -113,21 +113,23 @@ btree btree_create(bt_alloc_ptr alloc, uint8_t key_size, uint8_t value_size,
     tree_data->max_leaf_keys = (alloc->node_size-32) / (key_size+value_size) - 1;
     uint16_t max_root_keys = (alloc->node_size-32-sizeof(btree_data)-userdata_size)
                            / (key_size+value_size+sizeof(bt_node_id)) - 1;
-    tree_data->root_offset = tree_data->userdata+userdata_size-(char*)tree_data+1;
+    tree_data->root_offset = &tree_data->userdata+userdata_size-(char*)tree_data+1;
     // TODO checks that e.g. there is enough space for root
     NUM_KEYS(ROOT(tree_data)) = 0;
     MAX_KEYS(ROOT(tree_data)) = max_root_keys;
-    UNLOAD_TREE(tree);
+    UNLOAD_TREE(tree, tree_data);
     return tree;
 }
 
 void *btree_load_userdata(btree tree){
     btree_data *tree_data = tree.alloc->load(tree, tree.root);
-    return tree_data->userdata;
+    return &tree_data->userdata;
 }
 
-void btree_unload_userdata(btree tree){
-    tree.alloc->unload(tree, tree.root);
+void btree_unload_userdata(btree tree, void *userdata){
+    // offsetof(btree_data, userdata) doesn't work
+    tree.alloc->unload(tree, (uint8_t*)userdata
+            - (&((btree_data*)NULL)->userdata-(char*)NULL));
 }
 
 // Returns 2*(index of key)+1 if found, even number if between indices
@@ -158,7 +160,7 @@ static bt_node *init_node(tree_param tree, bt_node_id node_id, bool leaf){
     NUM_KEYS(node) = 0;
     MAX_KEYS(node) = leaf ? tree_data->max_leaf_keys:
                             tree_data->max_interior_keys;
-    UNLOAD(tree.tree.root);
+    UNLOAD(tree_data);
     return node;
 }
 
@@ -175,11 +177,10 @@ static bool insert(tree_param tree, bt_node *node, const uint8_t *pair, int heig
     int child = index/2;
     uint8_t child_split_pair[tree.pair_size];
     if(height){
-        bt_node_id child_id = CHILDREN(node)[child];
-        bt_node *child_node = LOAD(child_id);
+        bt_node *child_node = LOAD(CHILDREN(node)[child]);
         bool present = insert(tree, child_node, pair, height-1, 
                               child_split_pair, &new_node_id);
-        UNLOAD(child_id);
+        UNLOAD(child_node);
         if(!new_node_id)
             return present;
         pair = child_split_pair;
@@ -276,7 +277,7 @@ bool btree_insert(btree b_tree, const void *key, const void *value){
         NUM_KEYS(root) = 1;
         memcpy(PAIR(root, 0), pair, tree.pair_size);
 
-        UNLOAD_TREE(b_tree);
+        UNLOAD_TREE(b_tree, tree_data);
         return false;
     } else {
         uint8_t split_pair[tree.pair_size];
@@ -320,7 +321,7 @@ bool btree_insert(btree b_tree, const void *key, const void *value){
                 for(int i=NUM_KEYS(new_left)+1; i --> 0;)
                     CHILDREN(new_left)[i] = CHILDREN(root)[i];
 
-                UNLOAD(new_left_id);
+                UNLOAD(new_left);
                 
                 NUM_KEYS(root) = 1;
                 memcpy(PAIR(root, 0), split_pair, tree.pair_size);
@@ -328,10 +329,10 @@ bool btree_insert(btree b_tree, const void *key, const void *value){
                 CHILDREN(root)[1] = split_id;
 			}
 
-            UNLOAD(split_id);
+            UNLOAD(new_node);
             tree_data->height++;
         }
-        UNLOAD_TREE(b_tree);
+        UNLOAD_TREE(b_tree, tree_data);
         return already_present;
     }
 }
@@ -350,10 +351,9 @@ static bool search(tree_param tree, const bt_node* node, const void *key, uint8_
         return false;
     else {
         // recurse
-        bt_node_id child_id = CHILDREN(node)[index/2];
-        bt_node *child = LOAD(child_id);
+        bt_node *child = LOAD(CHILDREN(node)[index/2]);
         return search(tree, child, key, height-1, value_writeback);
-        UNLOAD(child_id);
+        UNLOAD(child);
     }
 }
 
@@ -362,10 +362,10 @@ bool btree_contains(btree b_tree, const void *key){
     tree_param tree = (tree_param){b_tree, tree_data->key_size, 
                         tree_data->key_size + tree_data->value_size};
     if(tree_data->height>=0){
-        UNLOAD_TREE(b_tree);
+        UNLOAD_TREE(b_tree, tree_data);
         return search(tree, ROOT(tree_data), key, tree_data->height, NULL);
     } else {
-        UNLOAD_TREE(b_tree);
+        UNLOAD_TREE(b_tree, tree_data);
         return false;
     }
 }
@@ -381,7 +381,7 @@ void btree_get(btree b_tree, const void *key, void *value, bool *success){
     } else if(success) {
         *success = false;
     }
-    UNLOAD_TREE(b_tree);
+    UNLOAD_TREE(b_tree, tree_data);
 }
 
 
@@ -392,10 +392,9 @@ static bool traverse(tree_param tree, bt_node *node,
     if(!reverse)
         for(int i=0; i <= NUM_KEYS(node); i++){
             if(height) {
-                bt_node_id child_id = CHILDREN(node)[i];
-                bt_node *child = LOAD(child_id);
+                bt_node *child = LOAD(CHILDREN(node)[i]);
                 traverse(tree, child, callback, params, reverse, height-1);
-                UNLOAD(child_id);
+                UNLOAD(child);
             }
             if(i<NUM_KEYS(node))
                 if(callback(PAIR(node, i), VALUE(PAIR(node, i)), params))
@@ -404,10 +403,9 @@ static bool traverse(tree_param tree, bt_node *node,
     else
         for(int i=NUM_KEYS(node)+1; i --> 0;){
             if(height) {
-                bt_node_id child_id = CHILDREN(node)[i];
-                bt_node *child = LOAD(child_id);
+                bt_node *child = LOAD(CHILDREN(node)[i]);
                 traverse(tree, child, callback, params, reverse, height-1);
-                UNLOAD(child_id);
+                UNLOAD(child);
             }
             if(i<NUM_KEYS(node))
                 if(callback(PAIR(node, i), VALUE(PAIR(node, i)), params))
@@ -426,7 +424,7 @@ bool btree_traverse(btree b_tree,
     if(tree_data->height>=0)
         aborted = traverse(tree, ROOT(tree_data), callback, 
                            id, reverse, tree_data->height);
-    UNLOAD_TREE(b_tree);
+    UNLOAD_TREE(b_tree, tree_data);
     return aborted;
 }
 
@@ -434,10 +432,9 @@ static void find_smallest(tree_param tree, const bt_node *node, int height, void
     if(!height)
         memcpy(writeback, PAIR(node, 0), tree.pair_size);
     else {
-        bt_node_id child_id = CHILDREN(node)[0];
-        bt_node *child = LOAD(child_id);
+        bt_node *child = LOAD(CHILDREN(node)[0]);
         find_smallest(tree, child, height-1, writeback);
-        UNLOAD(child_id);
+        UNLOAD(child);
     }
 }
 
@@ -445,10 +442,9 @@ static void find_biggest(tree_param tree, const bt_node *node, int height, void 
     if(!height)
         memcpy(writeback, PAIR(node, NUM_KEYS(node)-1), tree.pair_size);
     else {
-        bt_node_id child_id = CHILDREN(node)[0];
-        bt_node *child = LOAD(child_id);
+        bt_node *child = LOAD(CHILDREN(node)[0]);
         find_biggest(tree, child, height-1, writeback);
-        UNLOAD(child_id);
+        UNLOAD(child);
     }
 }
 
@@ -459,8 +455,8 @@ static void free_node(tree_param tree, bt_node *node, int height){
             if(height>1) {
                 bt_node *child = LOAD(child_id);
                 free_node(tree, child, height-1);
+                UNLOAD(child);
             }
-            // free may be called even if node is loaded
             FREE(child_id);
         }
 }
@@ -471,6 +467,7 @@ void btree_delete(btree b_tree){
                         tree_data->key_size + tree_data->value_size};
     if(tree_data->height>=0)
         free_node(tree, ROOT(tree_data), tree_data->height);
+    UNLOAD_TREE(b_tree, tree_data);
     FREE(b_tree.root);
     NOTIFY_DELETED();
 }
@@ -546,7 +543,7 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, int heig
                     }
                     NUM_KEYS(next)--;
                     NUM_KEYS(cn)++;
-                    UNLOAD(next_id);
+                    UNLOAD(next);
                 } else {
                     // If none available in siblings, merge
                     
@@ -580,22 +577,24 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, int heig
                     
                     // Free right, mark as to not trigger an unload after free
                     if(child_index){
+                        UNLOAD(cn);
                         FREE(child_id);
                         child_id = 0;
                     } else {
+                        UNLOAD(next);
                         FREE(next_id);
                         next_id = 0;
                     }
                 }
                 // only unload if not already freed
                 if(next_id)
-                    UNLOAD(next_id);
+                    UNLOAD(next);
             }
-            UNLOAD(prev_id);
+            UNLOAD(prev);
         }
         // only unload if not already freed
         if(child_id)
-            UNLOAD(child_id);
+            UNLOAD(cn);
         return found;
     }
 }
@@ -624,10 +623,11 @@ bool btree_remove(btree b_tree, const void *key){
                 if(tree_data->height > 1)
                     for(int i=NUM_KEYS(root)+1; i --> 0;)
                         CHILDREN(root)[i] = CHILDREN(proxied_root)[i];
+                UNLOAD(proxied_root);
                 FREE(proxied_root_id);
                 tree_data->height--;
             } else {
-                UNLOAD(proxied_root_id);
+                UNLOAD(proxied_root);
             }
         } else {
             found = remove_key(tree, root, key, tree_data->height); 
@@ -638,10 +638,10 @@ bool btree_remove(btree b_tree, const void *key){
             tree_data->height = -1;
         }
 
-        UNLOAD_TREE(b_tree);
+        UNLOAD_TREE(b_tree, tree_data);
         return found;
     } else {
-        UNLOAD_TREE(b_tree);
+        UNLOAD_TREE(b_tree, tree_data);
         return false;
     }
 }
@@ -656,8 +656,7 @@ static void debug_print(tree_param tree, FILE *stream, bt_node* node, bool print
     for(int i = 0; i < NUM_KEYS(node)+1; i++){
         // Print child
         if(height){
-            bt_node_id child_id = CHILDREN(node)[i];
-            bt_node *child = LOAD(child_id);
+            bt_node *child = LOAD(CHILDREN(node)[i]);
             uint32_t lines_row = i<(NUM_KEYS(node)+1)/2?lines_above:lines_below;
             debug_print(tree, stream, child, print_value, height-1, max_height,
                     i==0 ?              "╭"
@@ -665,7 +664,7 @@ static void debug_print(tree_param tree, FILE *stream, bt_node* node, bool print
                   :                     "├",
                   lines_row|(i==0?0:1<<(max_height-height)),
                   lines_row|(i==NUM_KEYS(node)?0:1<<(max_height-height)));
-            UNLOAD(child_id);
+            UNLOAD(child);
         }
         // Print key
         if(i<NUM_KEYS(node)){
@@ -712,11 +711,10 @@ void btree_debug_print(FILE *stream, btree b_tree, bool print_value){
     if(tree_data->height >= 0){
         bt_node *root = ROOT(tree_data);
         if(NUM_KEYS(root)==0){
-            bt_node_id proxied_root_id = CHILDREN(root)[0];
-            bt_node *proxied_root = LOAD(proxied_root_id);
+            bt_node *proxied_root = LOAD(CHILDREN(root)[0]);
             debug_print(tree, stream, proxied_root, print_value,
                     tree_data->height-1, tree_data->height-1, "", 0, 0);
-            UNLOAD(proxied_root_id);
+            UNLOAD(proxied_root);
         } else {
             debug_print(tree, stream, root, print_value,
                     tree_data->height, tree_data->height, "", 0, 0);
@@ -724,5 +722,5 @@ void btree_debug_print(FILE *stream, btree b_tree, bool print_value){
     }  else {
         puts("(empty)");
     }
-    UNLOAD_TREE(b_tree);
+    UNLOAD_TREE(b_tree, tree_data);
 }

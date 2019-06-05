@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
@@ -57,9 +59,10 @@ int compare_uint32(const void *key1, const void *key2, size_t size){
 
 void test_random(bt_alloc_ptr alloc, int attempts, int len, float del_chance){
     for(int att = 1; att <= attempts; att++){
-        printf("# Del chance %f, iteration %d\n", del_chance, att);
-
         bool debug = false;
+        
+        if(debug)
+            printf("# Del chance %f, iteration %d\n", del_chance, att);
 
         // TODO: test userdata storage
         btree tree = btree_create(alloc, sizeof(uint32_t), sizeof(uint32_t),
@@ -124,13 +127,19 @@ void test_random(bt_alloc_ptr alloc, int attempts, int len, float del_chance){
 }
 
 void debug(){
-    btree tree = btree_create(btree_new_ram_alloc(140), 4, 4, NULL, 0);
-    for(int i = 1; i < 7; i++){
+    int file = open("file", O_RDWR);
+    if(!file){
+        puts("Couldn't open file");
+        exit(1);
+    }
+
+    bt_alloc_ptr alloc = btree_new_file_alloc(file, NULL, 0);
+    btree tree = btree_create(alloc, 4, 4, NULL, 0);
+    for(int i = 1; i < 7000; i++){
         printf("Iteration %d\n", i);
         btree_insert(tree, &i, &i);
         btree_debug_print(stdout, tree, false);
     }
-//    btree_debug_print(stdout, tree, false);
     exit(0);
 }
 

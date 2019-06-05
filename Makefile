@@ -9,7 +9,7 @@ CC=gcc
 
 DEFINES = BT_KEY_TYPE=$(KEY_TYPE) BT_VALUE_TYPE=$(VALUE_TYPE)
 CFLAGS = -g -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -pedantic-errors $(addprefix -D,$(DEFINES))
-LIBOBJ = btree.o ram_alloc.o file_alloc_single.o file_alloc_multi.o
+LIBOBJ = btree.o ram_alloc.o file_alloc.o
 
 # Build static library, there's no reason for a shared lib
 release: CFLAGS += -O2
