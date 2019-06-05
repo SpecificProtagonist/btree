@@ -20,18 +20,16 @@ typedef struct {
 
 
 
+
 void tree_created(btree tree){}
 
 bt_node_id new(void *this){
     file_alloc *a = (file_alloc*)this;
-
-    printf("Allocating %ld\n", a->max_allocated);
     
     a->max_allocated++;
 
     if(a->max_allocated > a->file_size){
         a->file_size += ALLOC_NODES_STEP;
-        printf("Increasing file size to %ld\n", a->file_size);
         //TODO: proper error handling – store errno in alloc? 
         if((errno = posix_fallocate(a->file_descriptor, 0,
                     a->base.node_size * a->file_size))){
@@ -43,9 +41,10 @@ bt_node_id new(void *this){
 }
 
 void *load(btree tree, bt_node_id node){
-    printf("Loading %ld\n", node);
+    //TODO: somewhat expensive because of page faults → cache this
     void *mem = mmap(NULL, tree.alloc->node_size, PROT_READ|PROT_WRITE, MAP_SHARED,
             ((file_alloc*)tree.alloc)->file_descriptor, node*tree.alloc->node_size);
+    //TODO: proper error handling – store errno in alloc? 
     if(mem == MAP_FAILED){
         perror("Map failed");
         exit(1);
@@ -60,6 +59,7 @@ void unload(btree tree, void *node){
 void free_node(void *this, bt_node_id node){}
 
 void tree_deleted(btree tree){}
+
 
 
 

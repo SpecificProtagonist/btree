@@ -469,7 +469,6 @@ void btree_delete(btree b_tree){
         free_node(tree, ROOT(tree_data), tree_data->height);
     UNLOAD_TREE(b_tree, tree_data);
     FREE(b_tree.root);
-    NOTIFY_DELETED();
 }
 
 static bool remove_key(tree_param tree, bt_node *node, const void *key, int height){

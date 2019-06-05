@@ -95,8 +95,6 @@ void btree_debug_print(FILE *stream, btree, bool print_value);
 // Allocators manage memory for b-trees. You can define your own, 
 // but the inbuild ones should be sufficient in most cases.
 struct bt_alloc {
-    // Indicate that a new tree has been created
-    void (*tree_created)(btree);
     // Allocates space for a new node of size node_size.
     // This may also be used to store data other than tree nodes.
     // Node id 0 marks invalid node.
@@ -108,8 +106,6 @@ struct bt_alloc {
     void (*unload)(btree, void *node);
     // Deallocates a node (may not be called when loaded)
     void (*free)(void* this, bt_node_id node);
-    // Indicate that the b-tree has been deleted
-    void (*tree_deleted)(btree);
 
     // Size of a node in bytes
     uint16_t node_size;
