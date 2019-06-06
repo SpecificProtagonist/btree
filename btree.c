@@ -339,6 +339,15 @@ bool btree_insert(btree b_tree, const void *key, const void *value){
 
 
 
+bool btree_is_empty(btree b_tree){
+    btree_data *tree_data = LOAD_TREE(b_tree);
+    bool empty = tree_data->height == -1;
+    UNLOAD_TREE(b_tree, tree_data);
+    return empty;
+}
+
+
+
 static bool search(tree_param tree, const bt_node* node, const void *key, uint8_t height, void *value_writeback){
     int index = search_keys(tree, node, key);
     if(index%2==1) {
@@ -370,18 +379,16 @@ bool btree_contains(btree b_tree, const void *key){
     }
 }
 
-void btree_get(btree b_tree, const void *key, void *value, bool *success){
+bool btree_get(btree b_tree, const void *key, void *value){
     btree_data *tree_data = LOAD_TREE(b_tree);
     tree_param tree = (tree_param){b_tree, tree_data->key_size, 
                         tree_data->key_size + tree_data->value_size};
+    bool found = false;
     if(tree_data->height>=0){
-        bool found = search(tree, ROOT(tree_data), key, tree_data->height, value);
-        if(success)
-            *success = found;
-    } else if(success) {
-        *success = false;
+        found = search(tree, ROOT(tree_data), key, tree_data->height, value);
     }
     UNLOAD_TREE(b_tree, tree_data);
+    return found;
 }
 
 

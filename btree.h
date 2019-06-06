@@ -21,7 +21,6 @@ bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size);
 
 // Creates a new allocator that keeps trees in a file.
 // Trees (or other data) already present there will be overriden.
-// Can be freed with free().
 // A small amount of data, e.g a bt_node_id, can be stored alongside the allocator,
 // and a pointer to it will be stored in the location userdata points to.
 bt_alloc_ptr btree_new_file_alloc(int fd, uint8_t **userdata, int userdata_size);
@@ -29,8 +28,11 @@ bt_alloc_ptr btree_new_file_alloc(int fd, uint8_t **userdata, int userdata_size)
 // Loads the allocator created with btree_new_file_alloc() from file
 bt_alloc_ptr btree_load_file_alloc(int fd, uint8_t **userdata);
 
+// TODO: btree_unload_file_alloc
+
 // To load an existing btree, simply initialize the following structure
-// with the correct values.
+// with the correct values. If you created the tree with compare==NULL,
+// you'll have to set compare to memcmp.
 struct btree {
     bt_alloc_ptr alloc;
     bt_node_id root;
@@ -64,12 +66,15 @@ void btree_unload_userdata(btree, void *userdata);
 // returns true if key was already present.
 bool btree_insert(btree, const void *key, const void *value);
 
+// Checks whether the btree is empty
+bool btree_is_empty(btree);
+
 // Checks whether the tree contains the key
 bool btree_contains(btree, const void *key);
 
 // Retrieves the corresponding value and, if found, stores it in *value.
-// If success is not null, stores whether the key was found.
-void btree_get(btree, const void *key, void *value, bool *success);
+// Returns whether the key was found.
+bool btree_get(btree, const void *key, void *value);
 
 // Traverses tree, calling callback() with a pointer to each key&value and params.
 // If callback return true, end traversal early and return true, else return false.
