@@ -50,6 +50,7 @@ struct btree {
 // Creates a new b-tree from the given allocator.
 // userdata_size specifies the size of custom data (if any) stored along
 // side the tree (should be much smaller than the allocators node_size).
+// This is useful primarily for btrees stored in a file.
 // You can specify the function for comparing keys. If NULL, memcmp is used.
 btree btree_create(bt_alloc_ptr, uint8_t key_size, uint8_t value_size, 
         int (*compare)(const void *key1, const void *key2, size_t size), 
@@ -89,7 +90,7 @@ bool btree_remove(btree, const void *key);
 void btree_delete(btree);
 
 // Prints out a textual representation of the btree (intended for a monospace font)
-// to stream. Uses hexadecimal format for keys and pointer format for values,
+// to stream. Uses hexadecimal format for keys and values,
 // only prints values if print_value; expects utf-8 locale and VT1000.
 void btree_debug_print(FILE *stream, btree, bool print_value);
 
