@@ -13,8 +13,8 @@ typedef void bt_node;
 // so maybe use binary tree in array representation instead of array?
 // Would be more complex though.
 /// Node structure
-/*  int16_t   num_keys
- *  int16_t   max_keys
+/*  int16_t   max_keys
+ *  int16_t   num_keys
  *  {key, value}    pairs[max_keys]
  * // only in interior nodes:
  *  bt_node_id children[max_keys+1]
@@ -59,15 +59,15 @@ typedef struct {
 
 // Accessor macros since nodes aren't structs
 // These require the variable tree of type tree_param.
-# define NUM_KEYS(node) (*(int16_t*)node)
-# define MAX_KEYS(node) (*((int16_t*)node+1))
+# define NUM_KEYS(node) (*((int16_t*)node+1))
+# define MAX_KEYS(node) (*(int16_t*)node)
 # define MIN_KEYS(node) (MAX_KEYS(node)/2)
 # define PAIRS(node)    ((void*)((int16_t*)node+2))
 # define PAIR(node, i)  ((uint8_t*)PAIRS(node)+(i)*tree.pair_size)
 # define VALUE(pair)    (pair+tree.key_size)
 # define CHILDREN(node) ((bt_node_id*)(((char*)PAIRS(node))\
                             +tree.pair_size*MAX_KEYS(node)))
-# define CHILD(node, i) ((uint8_t*)CHILDREN(node)+(i)*sizeof(bt_node_id))
+# define CHILD(node, i) (CHILDREN(node)+(i))
 
 # define ROOT(tree_data) ((bt_node*)((char*)tree_data+tree_data->root_offset))
 
@@ -85,8 +85,8 @@ typedef struct {
 /**/ int16_t maxkeys(bt_node *node) {return MAX_KEYS(node);}
 /**/ int16_t minkeys(bt_node *node) {return MIN_KEYS(node);}
 /**/ uint8_t *pairs(bt_node *node) {return PAIRS(node);}
-/**/ uint32_t pair(tree_param tree, bt_node *node, int i)
-/**/          {return *(uint32_t*)PAIR(node, i);}
+/**/ uint8_t *pair(tree_param tree, bt_node *node, int i)
+/**/          {return PAIR(node, i);}
 /**/ bt_node_id *children(tree_param tree, bt_node *node) {return CHILDREN(node);}
 /**/ bt_node *root(btree_data *tree_data) {return ROOT(tree_data);}
 /*********************************************************************/
@@ -99,7 +99,7 @@ typedef struct {
  *************/
 
 btree btree_create(bt_alloc_ptr alloc, uint8_t key_size, uint8_t value_size,
-        int (*compare)(const void*, const void*, size_t), uint16_t userdata_size){
+        bt_key_comp compare, uint16_t userdata_size){
     bt_node_id tree_node_id = alloc->new(alloc);
     btree tree = (btree){alloc, tree_node_id, compare?compare:memcmp};
     btree_data *tree_data = LOAD_TREE(tree);
@@ -478,11 +478,13 @@ void btree_delete(btree b_tree){
     FREE(b_tree.root);
 }
 
-static bool remove_key(tree_param tree, bt_node *node, const void *key, int height){
+static bool remove_key(tree_param tree, bt_node *node, const void *key, void *value_out, int height){
     int index = search_keys(tree, node, key);
     if(!height){
         if(!(index%2))
             return false;
+        if(value_out)
+            memmove(value_out, VALUE(PAIR(node, index/2)), tree.pair_size-tree.key_size);
         memmove(PAIR(node, index/2), PAIR(node, index/2+1), 
                 (NUM_KEYS(node)-1-index/2)*tree.pair_size);
         // parent will check if below min number of keys
@@ -497,22 +499,28 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, int heig
             // remove key from child
             child_id = CHILDREN(node)[child_index];
             cn = LOAD(child_id);
-            found = remove_key(tree, cn, key, height-1);
-        } else if(child_index<NUM_KEYS(node)){
-            // the smallest key in the right subtree works as seperator
-            child_index++;
-            child_id = CHILDREN(node)[child_index];
-            cn = LOAD(child_id);
-            find_smallest(tree, cn, height-1, PAIR(node, index/2));
-            remove_key(tree, cn, PAIR(node, index/2), height-1);
-            found = true;
+            found = remove_key(tree, cn, key, value_out, height-1);
         } else {
-            // the biggest key in the left subtree works as seperator
-            child_id = CHILDREN(node)[child_index];
-            cn = LOAD(child_id);
-            find_biggest(tree, cn, height-1, PAIR(node, index/2));
-            remove_key(tree, cn, PAIR(node, index/2), height-1);
-            found = true;
+            // node contains key directly
+            if(value_out)
+                memmove(value_out, VALUE(PAIR(node, index/2)),
+                        tree.pair_size-tree.key_size);
+            if(child_index<NUM_KEYS(node)){
+                // the smallest key in the right subtree works as seperator
+                child_index++;
+                child_id = CHILDREN(node)[child_index];
+                cn = LOAD(child_id);
+                find_smallest(tree, cn, height-1, PAIR(node, index/2));
+                remove_key(tree, cn, PAIR(node, index/2), NULL, height-1);
+                found = true;
+            } else {
+                // the biggest key in the left subtree works as seperator
+                child_id = CHILDREN(node)[child_index];
+                cn = LOAD(child_id);
+                find_biggest(tree, cn, height-1, PAIR(node, index/2));
+                remove_key(tree, cn, PAIR(node, index/2), NULL, height-1);
+                found = true;
+            }
         }
         // rebalance if child below min number of keys
         if(NUM_KEYS(cn)<MIN_KEYS(cn)){
@@ -605,7 +613,7 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, int heig
     }
 }
 
-bool btree_remove(btree b_tree, const void *key){
+bool btree_remove(btree b_tree, const void *key, void *value_out){
     btree_data *tree_data = LOAD_TREE(b_tree);
     tree_param tree = (tree_param){b_tree, tree_data->key_size, 
                         tree_data->key_size + tree_data->value_size};
@@ -619,7 +627,7 @@ bool btree_remove(btree b_tree, const void *key){
         if(NUM_KEYS(root)==0){
             bt_node_id proxied_root_id = CHILDREN(root)[0];
             bt_node *proxied_root = LOAD(proxied_root_id);
-            found = remove_key(tree, proxied_root, key, tree_data->height-1);
+            found = remove_key(tree, proxied_root, key, value_out, tree_data->height-1);
             
             // If the actual root now fits into the tree root again,
             // its data can be moved there
@@ -636,7 +644,7 @@ bool btree_remove(btree b_tree, const void *key){
                 UNLOAD(proxied_root);
             }
         } else {
-            found = remove_key(tree, root, key, tree_data->height); 
+            found = remove_key(tree, root, key, value_out, tree_data->height); 
         }
         
         // Check if tree is empty
@@ -674,7 +682,7 @@ static void debug_print(tree_param tree, FILE *stream, bt_node* node, bool print
         }
         // Print key
         if(i<NUM_KEYS(node)){
-            // Print space and horizontal lines
+            // Print space and vertical lines
             for(int s = 0; s<(max_height-height)*6; s++)
                 fputs(s%6==5 && (i<NUM_KEYS(node)/2?lines_above:lines_below)&1<<(s/6) ?"│":" ", stream);
             // Print horizontal lines & connectors

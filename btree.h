@@ -11,6 +11,7 @@
 typedef struct btree btree;
 typedef struct bt_alloc *bt_alloc_ptr;
 typedef uint64_t bt_node_id;
+typedef int (*bt_key_comp)(const void*, const void*, size_t);
 
 
 // Creates a new allocator that keeps each entire trees in RAM,
@@ -36,7 +37,7 @@ bt_alloc_ptr btree_load_file_alloc(int fd, uint8_t **userdata);
 struct btree {
     bt_alloc_ptr alloc;
     bt_node_id root;
-    int (*compare)(const void*, const void*, size_t);
+    bt_key_comp compare;
 };
 
 
@@ -51,10 +52,10 @@ struct btree {
 // userdata_size specifies the size of custom data (if any) stored along
 // side the tree (should be much smaller than the allocators node_size).
 // This is useful primarily for btrees stored in a file.
-// You can specify the function for comparing keys. If NULL, memcmp is used.
+// You can specify the function for comparing keys, which is useful if you want
+// to be able to traverse the tree in a specific order. If NULL, memcmp is used.
 btree btree_create(bt_alloc_ptr, uint8_t key_size, uint8_t value_size, 
-        int (*compare)(const void *key1, const void *key2, size_t size), 
-        uint16_t userdata_size);
+        bt_key_comp, uint16_t userdata_size);
 
 // Gets a pointer to the userdata stored alongside the tree.
 // This doesn't have a guaranteed alignment.
@@ -73,9 +74,9 @@ bool btree_is_empty(btree);
 // Checks whether the tree contains the key
 bool btree_contains(btree, const void *key);
 
-// Retrieves the corresponding value and, if found, stores it in *value.
+// Retrieves the corresponding value and, if found, stores it in *value_out.
 // Returns whether the key was found.
-bool btree_get(btree, const void *key, void *value);
+bool btree_get(btree, const void *key, void *value_out);
 
 // Traverses tree, calling callback() with a pointer to each key&value and params.
 // If callback return true, end traversal early and return true, else return false.
@@ -83,8 +84,9 @@ bool btree_traverse(btree,
         bool (*callback)(const void *key, void *value, void *param),
         void* params, bool reverse);
 
-// Remove the key from the tree, return true if the tree did contain it, else false.
-bool btree_remove(btree, const void *key);
+// Remove the key from the tree, store the corresponding value (if value_out!=NULL).
+// Return true if the tree did contain the key, else false.
+bool btree_remove(btree, const void *key, void *value_out);
 
 // Deletes a tree
 void btree_delete(btree);
