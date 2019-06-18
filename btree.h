@@ -24,12 +24,13 @@ bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size);
 // Trees (or other data) already present there will be overriden.
 // A small amount of data, e.g a bt_node_id, can be stored alongside the allocator,
 // and a pointer to it will be stored in the location userdata points to.
-bt_alloc_ptr btree_new_file_alloc(int fd, uint8_t **userdata, int userdata_size);
+bt_alloc_ptr btree_new_file_alloc(int fd, void **userdata, int userdata_size);
 
 // Loads the allocator created with btree_new_file_alloc() from file
-bt_alloc_ptr btree_load_file_alloc(int fd, uint8_t **userdata);
+bt_alloc_ptr btree_load_file_alloc(int fd, void **userdata);
 
-// TODO: btree_unload_file_alloc
+// Unloads a file allocator. TODO: call automatically on exit.
+void btree_unload_file_alloc(bt_alloc_ptr file_alloc);
 
 // To load an existing btree, simply initialize the following structure
 // with the correct values. If you created the tree with compare==NULL,

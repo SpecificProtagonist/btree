@@ -80,7 +80,7 @@ void test_random(bt_alloc_ptr alloc, int attempts, int len, float del_chance){
             if(debug)
                 printf("%d | %s %x (%d)\n", i, delete?"Deleting":"Inserting", key, key);
             if(delete)
-                btree_remove(tree, &key);
+                btree_remove(tree, &key, NULL);
             else
                 btree_insert(tree, &key, &key);
             if(debug)
@@ -126,29 +126,101 @@ void test_random(bt_alloc_ptr alloc, int attempts, int len, float del_chance){
     }
 }
 
-void debug(){
-    int file = open("file", O_RDWR);
-    if(!file){
-        puts("Couldn't open file");
+/*void test_serialization(){
+    bt_alloc_ptr alloc = btree_new_ram_alloc(200);
+    btree tree = btree_create(alloc, 4, 4, memcmp, 0);
+
+    int num = 300;
+    for(int i = num; i --> 0;)
+        btree_insert(tree, &i, &i);
+    btree_debug_print(stdout, tree, false);
+    
+    FILE *file = fopen("file", "w+");
+
+    btree_serialize(tree, file);
+    btree_delete(tree);
+    tree = btree_deserialize(file, alloc, NULL);
+
+    btree_debug_print(stdout, tree, true);
+
+    for(int i = 1; i < num; i++){
+        printf("Deletion iteration %x\n", i);
+        uint32_t value;
+        bool removed = btree_remove(tree, &i, &value);
+        printf("Num: %d\n", num);
+        if(!removed){
+            printf("Tree did not contain %x\n", i);
+            exit(1);
+        }
+        printf("Num: %d\n", num);
+        if(value!=i){
+            printf("Value for key %x was %x\n", i, value);
+            exit(1);
+        }
+//        btree_debug_print(stdout, tree, false);
+    }
+    fclose(file);
+    exit(0);
+}*/
+
+void create_tree(){
+    int file = open("stored", O_RDWR);
+    if(file==-1){
+        perror("Couldn't open file");
         exit(1);
     }
 
     bt_alloc_ptr alloc = btree_new_file_alloc(file, NULL, 0);
-    btree tree = btree_create(alloc, 4, 4, NULL, 0);
-    for(int i = 1; i < 7000; i++){
-        printf("Iteration %d\n", i);
+//    bt_alloc_ptr alloc = btree_new_ram_alloc(100);
+    btree tree = btree_create(alloc, 4, 4, memcmp, 0);
+    int num = 3500;
+    btree_debug_print(stdout, tree, true);
+    for(int i = 1; i < num; i++){
+        printf("Insertion iteration %x\n", i);
         btree_insert(tree, &i, &i);
-        btree_debug_print(stdout, tree, false);
+//        btree_debug_print(stdout, tree, true);
     }
-    exit(0);
+    btree_unload_file_alloc(alloc);
+    close(file);
+}
+
+void remove_tree(){
+    int file = open("stored", O_RDWR);
+    if(file==-1){
+        perror("Couldn't open file");
+        exit(1);
+    }
+
+    bt_alloc_ptr alloc = btree_load_file_alloc(file, NULL);
+    btree tree = {alloc, 1, memcmp};
+
+    int num = 3500;
+    for(int i = 1; i < num; i++){
+        printf("Deletion iteration %x\n", i);
+        uint32_t value;
+        if(!btree_remove(tree, &i, &value)){
+            printf("Tree did not contain %x\n", i);
+            exit(1);
+        }
+        if(value!=i){
+            printf("Value for key %x was %x\n", i, value);
+            exit(1);
+        }
+//        btree_debug_print(stdout, tree, true);
+    }
+    close(file);
 }
 
 int main(void){
     //time_t t;
     //srand((unsigned) time(&t));
     srand(1);
-    
-//    debug();
+  
+//    test_serialization();
+
+    create_tree();
+    remove_tree();
+    exit(0);
 
     bt_alloc_ptr alloc = btree_new_ram_alloc(496);
     for(float del_chance = 0.1; del_chance < 0.6; del_chance += 0.15)

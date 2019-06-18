@@ -69,7 +69,7 @@ typedef struct {
                             +tree.pair_size*MAX_KEYS(node)))
 # define CHILD(node, i) (CHILDREN(node)+(i))
 
-# define ROOT(tree_data) ((bt_node*)((char*)tree_data+tree_data->root_offset))
+# define ROOT(tree_data) ((bt_node*)((char*)(tree_data)+(tree_data)->root_offset))
 
 # define LOAD(node) (tree.tree.alloc->load(tree.tree, node))
 # define LOAD_TREE(b_tree) (b_tree.alloc->load(b_tree, b_tree.root))
