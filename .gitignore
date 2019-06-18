@@ -1,4 +1,3 @@
-build/*
 .gdbinit
 compile_commands.json
 *.swp
