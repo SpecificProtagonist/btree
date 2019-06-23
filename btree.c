@@ -47,7 +47,7 @@ typedef struct {
 typedef struct {
     btree tree;
     uint8_t key_size;
-    uint8_t pair_size;
+    uint8_t value_size;
 } tree_param;
 
 
@@ -63,10 +63,10 @@ typedef struct {
 # define MAX_KEYS(node) (*(int16_t*)node)
 # define MIN_KEYS(node) (MAX_KEYS(node)/2)
 # define PAIRS(node)    ((void*)((int16_t*)node+2))
-# define PAIR(node, i)  ((uint8_t*)PAIRS(node)+(i)*tree.pair_size)
+# define PAIR(node, i)  ((uint8_t*)PAIRS(node)+(i)*(tree.key_size+tree.value_size))
 # define VALUE(pair)    (pair+tree.key_size)
 # define CHILDREN(node) ((bt_node_id*)(((char*)PAIRS(node))\
-                            +tree.pair_size*MAX_KEYS(node)))
+                            +(tree.key_size+tree.value_size)*MAX_KEYS(node)))
 # define CHILD(node, i) (CHILDREN(node)+(i))
 
 # define ROOT(tree_data) ((bt_node*)((char*)(tree_data)+(tree_data)->root_offset))
@@ -170,12 +170,12 @@ static bt_node *init_node(tree_param tree, bt_node_id node_id, bool leaf){
 static bool insert(tree_param tree, bt_node *node, const uint8_t *pair, int height, void *split_pair, bt_node_id *split_new_node_id){
     int index = search_keys(tree, node, pair);
     if(index%2){ // key already present
-        memcpy(PAIR(node, index/2), VALUE(pair), tree.pair_size-tree.key_size);
+        memcpy(PAIR(node, index/2), VALUE(pair), tree.value_size);
         return true;
     }
     bt_node_id new_node_id = 0;
     int child = index/2;
-    uint8_t child_split_pair[tree.pair_size];
+    uint8_t child_split_pair[(tree.key_size+tree.value_size)];
     if(height){
         bt_node *child_node = LOAD(CHILDREN(node)[child]);
         bool present = insert(tree, child_node, pair, height-1, 
@@ -188,12 +188,12 @@ static bool insert(tree_param tree, bt_node *node, const uint8_t *pair, int heig
     if(NUM_KEYS(node) < MAX_KEYS(node)){
         // enough room, insert new child
         memmove(PAIR(node, child+1), PAIR(node, child), 
-                tree.pair_size*(NUM_KEYS(node)-child));
+                (tree.key_size+tree.value_size)*(NUM_KEYS(node)-child));
         if(height) // height==0 means leaf → no children
             memmove(CHILD(node, child+2), CHILD(node, child+1), 
                     sizeof(bt_node_id)*(NUM_KEYS(node)-child));
         NUM_KEYS(node)++;
-        memcpy(PAIR(node, child), pair, tree.pair_size);
+        memcpy(PAIR(node, child), pair, (tree.key_size+tree.value_size));
         if(height)
             CHILDREN(node)[child+1] = new_node_id;
         return true;
@@ -212,12 +212,12 @@ static bool insert(tree_param tree, bt_node *node, const uint8_t *pair, int heig
         // If the key is less than the median insert it into the old node,
         // if greater insert into the new one.
         // Copy half of the keys into the right node, lower the left ones num_keys.
-        uint8_t median[tree.pair_size];
+        uint8_t median[(tree.key_size+tree.value_size)];
         if(child == NUM_KEYS(node)){
             // Key in middle
-            memcpy(median, pair, tree.pair_size);
+            memcpy(median, pair, (tree.key_size+tree.value_size));
             memmove(PAIRS(right), PAIR(node, NUM_KEYS(node)),
-                    tree.pair_size*NUM_KEYS(right));
+                    (tree.key_size+tree.value_size)*NUM_KEYS(right));
             if(height)
                 CHILDREN(right)[0] = new_node_id;
             if(height)
@@ -226,38 +226,38 @@ static bool insert(tree_param tree, bt_node *node, const uint8_t *pair, int heig
         } else if(child <= MIN_KEYS(node)){
             // Key in left node
             memmove(PAIRS(right), PAIR(node, NUM_KEYS(node)),
-                    tree.pair_size*NUM_KEYS(right));
+                    (tree.key_size+tree.value_size)*NUM_KEYS(right));
             if(height)
                 for(int i = MAX_KEYS(node)+1; i --> NUM_KEYS(node);)
                     CHILDREN(right)[i-NUM_KEYS(node)] = CHILDREN(node)[i];
-            memcpy(median, PAIR(node, NUM_KEYS(node)-1), tree.pair_size);
+            memcpy(median, PAIR(node, NUM_KEYS(node)-1), (tree.key_size+tree.value_size));
             memmove(PAIR(node, child+1), PAIR(node, child),
-                    tree.pair_size*(NUM_KEYS(node)-child));
+                    (tree.key_size+tree.value_size)*(NUM_KEYS(node)-child));
             if(height)
                 for(int i = NUM_KEYS(node); i --> child+1;)
                     CHILDREN(node)[i+1] = CHILDREN(node)[i];
-            memcpy(PAIR(node, child), pair, tree.pair_size);
+            memcpy(PAIR(node, child), pair, (tree.key_size+tree.value_size));
             if(height)
                 CHILDREN(node)[child+1] = new_node_id;
         } else {
             // Key in right node
-            memcpy(median, PAIR(node, NUM_KEYS(node)), tree.pair_size);
+            memcpy(median, PAIR(node, NUM_KEYS(node)), (tree.key_size+tree.value_size));
             memmove(PAIRS(right), PAIR(node, NUM_KEYS(node)+1),
-                    tree.pair_size*(child-NUM_KEYS(node)-1));
+                    (tree.key_size+tree.value_size)*(child-NUM_KEYS(node)-1));
             if(height)
                 for(int i = child+1; i --> NUM_KEYS(node)+1;)
                     CHILDREN(right)[i-NUM_KEYS(node)-1] = CHILDREN(node)[i];
-            memcpy(PAIR(right, child-NUM_KEYS(node)-1), pair, tree.pair_size);
+            memcpy(PAIR(right, child-NUM_KEYS(node)-1), pair, (tree.key_size+tree.value_size));
             if(height)
                 CHILDREN(right)[child-NUM_KEYS(node)] = new_node_id;
             memmove(PAIR(right, child-NUM_KEYS(node)), PAIR(node, child),
-                    tree.pair_size*(MAX_KEYS(node)-child));
+                    (tree.key_size+tree.value_size)*(MAX_KEYS(node)-child));
             if(height)
                 for(int i = MAX_KEYS(node)+1; i --> child+1;)
                     CHILDREN(right)[i-NUM_KEYS(node)] = CHILDREN(node)[i];
         }
         //TODO: eliminate this memcpy
-        memcpy(split_pair, median, tree.pair_size);
+        memcpy(split_pair, median, (tree.key_size+tree.value_size));
         *split_new_node_id = right_id;   //Unload?
         return false;
     }
@@ -265,22 +265,21 @@ static bool insert(tree_param tree, bt_node *node, const uint8_t *pair, int heig
 
 bool btree_insert(btree b_tree, const void *key, const void *value){
     btree_data *tree_data = LOAD_TREE(b_tree);
-    tree_param tree = {b_tree, tree_data->key_size, 
-                           tree_data->key_size+tree_data->value_size};
+    tree_param tree = {b_tree, tree_data->key_size, tree_data->value_size};
     bt_node *root = ROOT(tree_data);
-    uint8_t pair[tree.pair_size];
+    uint8_t pair[(tree.key_size+tree.value_size)];
     memcpy(pair, key, tree.key_size);
-    memcpy(pair+tree.key_size, value, tree.pair_size-tree.key_size);
+    memcpy(pair+tree.key_size, value, tree.value_size);
     if(tree_data->height==-1){
         // Tree is empty
         tree_data->height = 0;
         NUM_KEYS(root) = 1;
-        memcpy(PAIR(root, 0), pair, tree.pair_size);
+        memcpy(PAIR(root, 0), pair, (tree.key_size+tree.value_size));
 
         UNLOAD_TREE(b_tree, tree_data);
         return false;
     } else {
-        uint8_t split_pair[tree.pair_size];
+        uint8_t split_pair[(tree.key_size+tree.value_size)];
         bt_node_id split_id = 0;
         bool already_present = insert(tree, root,
                 pair, tree_data->height, split_pair, &split_id);
@@ -293,10 +292,10 @@ bool btree_insert(btree b_tree, const void *key, const void *value){
                 // In that case move root node data into the new node
 				// and make that a child of the root (root will have 0 keys).
 				memmove(PAIR(new_node, NUM_KEYS(root)+1), PAIRS(new_node),
-						NUM_KEYS(new_node)*tree.pair_size);
-				memcpy(PAIR(new_node, NUM_KEYS(root)), split_pair, tree.pair_size);
+						NUM_KEYS(new_node)*(tree.key_size+tree.value_size));
+				memcpy(PAIR(new_node, NUM_KEYS(root)), split_pair, (tree.key_size+tree.value_size));
 				memmove(PAIRS(new_node), PAIRS(root),
-						NUM_KEYS(root)*tree.pair_size);
+						NUM_KEYS(root)*(tree.key_size+tree.value_size));
 				if(tree_data->height){
 					for(int i=NUM_KEYS(new_node)+1; i --> 0;)
 						CHILDREN(new_node)[i+NUM_KEYS(root)+1]
@@ -316,7 +315,7 @@ bool btree_insert(btree b_tree, const void *key, const void *value){
                 NUM_KEYS(new_left) = NUM_KEYS(root);
                 MAX_KEYS(new_left) = MAX_KEYS(root);
                 
-				memmove(PAIRS(new_left), PAIRS(root), NUM_KEYS(new_left)*tree.pair_size);
+				memmove(PAIRS(new_left), PAIRS(root), NUM_KEYS(new_left)*(tree.key_size+tree.value_size));
                 // If execution reaches here, root is interior
                 for(int i=NUM_KEYS(new_left)+1; i --> 0;)
                     CHILDREN(new_left)[i] = CHILDREN(root)[i];
@@ -324,7 +323,7 @@ bool btree_insert(btree b_tree, const void *key, const void *value){
                 UNLOAD(new_left);
                 
                 NUM_KEYS(root) = 1;
-                memcpy(PAIR(root, 0), split_pair, tree.pair_size);
+                memcpy(PAIR(root, 0), split_pair, (tree.key_size+tree.value_size));
                 CHILDREN(root)[0] = new_left_id;
                 CHILDREN(root)[1] = split_id;
 			}
@@ -353,7 +352,7 @@ static bool search(tree_param tree, const bt_node* node, const void *key, uint8_
     if(index%2==1) {
         // key is in pairs
         if(value_writeback)
-            memcpy(value_writeback, PAIR(node, index/2), tree.pair_size);
+            memcpy(value_writeback, PAIR(node, index/2), (tree.key_size+tree.value_size));
         return true;
     } if(height==0)
         // leaf node & key's not a child
@@ -368,8 +367,7 @@ static bool search(tree_param tree, const bt_node* node, const void *key, uint8_
 
 bool btree_contains(btree b_tree, const void *key){
     btree_data *tree_data = LOAD_TREE(b_tree);
-    tree_param tree = (tree_param){b_tree, tree_data->key_size, 
-                        tree_data->key_size + tree_data->value_size};
+    tree_param tree = (tree_param){b_tree, tree_data->key_size, tree_data->value_size};
     if(tree_data->height>=0){
         UNLOAD_TREE(b_tree, tree_data);
         return search(tree, ROOT(tree_data), key, tree_data->height, NULL);
@@ -381,8 +379,7 @@ bool btree_contains(btree b_tree, const void *key){
 
 bool btree_get(btree b_tree, const void *key, void *value){
     btree_data *tree_data = LOAD_TREE(b_tree);
-    tree_param tree = (tree_param){b_tree, tree_data->key_size, 
-                        tree_data->key_size + tree_data->value_size};
+    tree_param tree = (tree_param){b_tree, tree_data->key_size, tree_data->value_size};
     bool found = false;
     if(tree_data->height>=0){
         found = search(tree, ROOT(tree_data), key, tree_data->height, value);
@@ -425,8 +422,7 @@ bool btree_traverse(btree b_tree,
         bool (*callback)(const void*, void*, void*),
         void* id, bool reverse){
     btree_data *tree_data = LOAD_TREE(b_tree);
-    tree_param tree = (tree_param){b_tree, tree_data->key_size, 
-                        tree_data->key_size + tree_data->value_size};
+    tree_param tree = (tree_param){b_tree, tree_data->key_size, tree_data->value_size};
     bool aborted = false;
     if(tree_data->height>=0)
         aborted = traverse(tree, ROOT(tree_data), callback, 
@@ -437,7 +433,7 @@ bool btree_traverse(btree b_tree,
 
 static void find_smallest(tree_param tree, const bt_node *node, int height, void *writeback){
     if(!height)
-        memcpy(writeback, PAIR(node, 0), tree.pair_size);
+        memcpy(writeback, PAIR(node, 0), (tree.key_size+tree.value_size));
     else {
         bt_node *child = LOAD(CHILDREN(node)[0]);
         find_smallest(tree, child, height-1, writeback);
@@ -447,7 +443,7 @@ static void find_smallest(tree_param tree, const bt_node *node, int height, void
 
 static void find_biggest(tree_param tree, const bt_node *node, int height, void *writeback){
     if(!height)
-        memcpy(writeback, PAIR(node, NUM_KEYS(node)-1), tree.pair_size);
+        memcpy(writeback, PAIR(node, NUM_KEYS(node)-1), (tree.key_size+tree.value_size));
     else {
         bt_node *child = LOAD(CHILDREN(node)[0]);
         find_biggest(tree, child, height-1, writeback);
@@ -470,8 +466,7 @@ static void free_node(tree_param tree, bt_node *node, int height){
 
 void btree_delete(btree b_tree){
     btree_data *tree_data = LOAD_TREE(b_tree);
-    tree_param tree = (tree_param){b_tree, tree_data->key_size, 
-                        tree_data->key_size + tree_data->value_size};
+    tree_param tree = (tree_param){b_tree, tree_data->key_size, tree_data->value_size};
     if(tree_data->height>=0)
         free_node(tree, ROOT(tree_data), tree_data->height);
     UNLOAD_TREE(b_tree, tree_data);
@@ -484,9 +479,9 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, void *va
         if(!(index%2))
             return false;
         if(value_out)
-            memmove(value_out, VALUE(PAIR(node, index/2)), tree.pair_size-tree.key_size);
+            memmove(value_out, VALUE(PAIR(node, index/2)), tree.value_size);
         memmove(PAIR(node, index/2), PAIR(node, index/2+1), 
-                (NUM_KEYS(node)-1-index/2)*tree.pair_size);
+                (NUM_KEYS(node)-1-index/2)*(tree.key_size+tree.value_size));
         // parent will check if below min number of keys
         NUM_KEYS(node)--;
         return true;
@@ -503,8 +498,7 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, void *va
         } else {
             // node contains key directly
             if(value_out)
-                memmove(value_out, VALUE(PAIR(node, index/2)),
-                        tree.pair_size-tree.key_size);
+                memmove(value_out, VALUE(PAIR(node, index/2)), tree.value_size);
             if(child_index<NUM_KEYS(node)){
                 // the smallest key in the right subtree works as seperator
                 child_index++;
@@ -529,13 +523,13 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, void *va
             bt_node_id prev_id = CHILDREN(node)[child_index-1];
             bt_node *prev = LOAD(prev_id);
             if(child_index>0 && NUM_KEYS(prev)>MIN_KEYS(prev)){
-                memmove(PAIR(cn, 1), PAIRS(cn), NUM_KEYS(cn)*tree.pair_size);
+                memmove(PAIR(cn, 1), PAIRS(cn), NUM_KEYS(cn)*(tree.key_size+tree.value_size));
                 if(height-1)
                     for(int i = NUM_KEYS(cn)+1; i --> 0;)
                         CHILDREN(cn)[i+1] = CHILDREN(cn)[i];
-                memcpy(PAIR(cn, 0), PAIR(node, child_index-1), tree.pair_size);
+                memcpy(PAIR(cn, 0), PAIR(node, child_index-1), (tree.key_size+tree.value_size));
                 memcpy(PAIR(node, child_index-1), PAIR(prev, NUM_KEYS(prev)-1),
-                        tree.pair_size);
+                        (tree.key_size+tree.value_size));
                 if(height-1)
                     CHILDREN(cn)[0] = CHILDREN(prev)[NUM_KEYS(prev)];
                 NUM_KEYS(prev)--;
@@ -547,9 +541,9 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, void *va
                 // else take from right if possible
                 if(child_index<NUM_KEYS(node) && NUM_KEYS(next)>MIN_KEYS(next)){
                     memcpy(PAIR(cn, NUM_KEYS(cn)), PAIR(node, child_index), 
-                           tree.pair_size);
-                    memcpy(PAIR(node, child_index), PAIR(next, 0), tree.pair_size);
-                    memmove(PAIRS(next), PAIR(next, 1), NUM_KEYS(next)*tree.pair_size);
+                           (tree.key_size+tree.value_size));
+                    memcpy(PAIR(node, child_index), PAIR(next, 0), (tree.key_size+tree.value_size));
+                    memmove(PAIRS(next), PAIR(next, 1), NUM_KEYS(next)*(tree.key_size+tree.value_size));
                     if(height-1){
                         CHILDREN(cn)[NUM_KEYS(cn)+1] = CHILDREN(next)[0];
                         for(int i = 0; i < NUM_KEYS(next); i++)
@@ -576,13 +570,13 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, void *va
                     
                     // Merge right into left
                     memcpy(PAIR(left, NUM_KEYS(left)), PAIR(node, left_index),
-                           tree.pair_size);
+                           (tree.key_size+tree.value_size));
                     memmove(PAIR(node, left_index), PAIR(node, left_index+1),
-                            (NUM_KEYS(node)-left_index)*tree.pair_size);
+                            (NUM_KEYS(node)-left_index)*(tree.key_size+tree.value_size));
                     for(int i = left_index+1; i < NUM_KEYS(node); i++)
                         CHILDREN(node)[i] = CHILDREN(node)[i+1];
                     memmove(PAIR(left, NUM_KEYS(left)+1), PAIRS(right),
-                            NUM_KEYS(right)*tree.pair_size);
+                            NUM_KEYS(right)*(tree.key_size+tree.value_size));
                     if(height-1)
                         for(int i = NUM_KEYS(right)+1; i --> 0;) 
                             CHILDREN(left)[i+NUM_KEYS(left)+1] = CHILDREN(right)[i];
@@ -615,8 +609,7 @@ static bool remove_key(tree_param tree, bt_node *node, const void *key, void *va
 
 bool btree_remove(btree b_tree, const void *key, void *value_out){
     btree_data *tree_data = LOAD_TREE(b_tree);
-    tree_param tree = (tree_param){b_tree, tree_data->key_size, 
-                        tree_data->key_size + tree_data->value_size};
+    tree_param tree = (tree_param){b_tree, tree_data->key_size, tree_data->value_size};
     if(tree_data->height>=0){
         bt_node *root = ROOT(tree_data);
         bool found;
@@ -633,7 +626,7 @@ bool btree_remove(btree b_tree, const void *key, void *value_out){
             // its data can be moved there
             if(NUM_KEYS(proxied_root)==MAX_KEYS(root)){
                 NUM_KEYS(root) = MAX_KEYS(root);
-                memmove(PAIRS(root), PAIRS(proxied_root), NUM_KEYS(root)*tree.pair_size);
+                memmove(PAIRS(root), PAIRS(proxied_root), NUM_KEYS(root)*(tree.key_size+tree.value_size));
                 if(tree_data->height > 1)
                     for(int i=NUM_KEYS(root)+1; i --> 0;)
                         CHILDREN(root)[i] = CHILDREN(proxied_root)[i];
@@ -720,8 +713,7 @@ static void debug_print(tree_param tree, FILE *stream, bt_node* node, bool print
 
 void btree_debug_print(FILE *stream, btree b_tree, bool print_value){
     btree_data *tree_data = LOAD_TREE(b_tree);
-    tree_param tree = (tree_param){b_tree, tree_data->key_size, 
-                        tree_data->key_size + tree_data->value_size};
+    tree_param tree = (tree_param){b_tree, tree_data->key_size, tree_data->value_size};
     if(tree_data->height >= 0){
         bt_node *root = ROOT(tree_data);
         if(NUM_KEYS(root)==0){

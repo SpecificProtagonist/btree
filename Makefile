@@ -24,8 +24,8 @@ test:
 	@make -s _test VALUE_TYPE=uint32_t
 
 _test: debug
-	@$(CC) $(CFLAGS) test.c -Lbuild/debug -lbtree -o build/test
-	@build/test
+	@$(CC) $(CFLAGS) test.c -Lbuild/debug -lbtree -o build/debug/test
+	@build/debug/test
 	@echo "Test successful"
 
 build/release/%.o: %.c btree.h
