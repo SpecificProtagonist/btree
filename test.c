@@ -34,7 +34,7 @@ bool order_callback(const void *key, void *value, void *params){
     if(par->last_key >= *(uint32_t*)key){
         printf("TEST FAILED:\nKey %x appeared before key %x\n",
                 par->last_key, *(uint32_t*)key);
-        btree_debug_print(stderr, par->tree, false);
+        btree_debug_print(stderr, par->tree, NULL, NULL);
         exit(1);
     }
     par->last_key = *(uint32_t*)key;
@@ -45,7 +45,7 @@ bool value_callback(const void *key, void *value, void *params){
     if(*(uint32_t*)key!=*(uint32_t*)value){
         printf("TEST FAILED:\nKey %x has value %x\n", 
                 *(uint32_t*)key, *(uint32_t*)value);
-        btree_debug_print(stderr, *(btree*)params, true);
+        btree_debug_print(stderr, *(btree*)params, NULL, NULL);
         exit(1);
     }
     return false;
@@ -84,7 +84,7 @@ void test_random(bt_alloc_ptr alloc, int attempts, int len, float del_chance){
             else
                 btree_insert(tree, &key, &key);
             if(debug)
-                btree_debug_print(stdout, tree, false);
+                btree_debug_print(stdout, tree, NULL, NULL);
             keys[i] = key;
             for(int j = 0; j<=i; j++) if(keys[j]==key)
                     correct[j] = 1-delete;
@@ -105,7 +105,7 @@ void test_random(bt_alloc_ptr alloc, int attempts, int len, float del_chance){
                     printf("%s %x\n", ops[j]?"del":"add",keys[j]);
                 printf("Incorrect: %x occured %d instead of %d times\n", keys[i],
                         occurences[i], correct[i]);
-                btree_debug_print(stdout, tree, false);
+                btree_debug_print(stdout, tree, NULL, NULL);
                 exit(1);
             }
         
@@ -174,9 +174,9 @@ void create_tree(){
 //    bt_alloc_ptr alloc = btree_new_ram_alloc(100);
     btree tree = btree_create(alloc, 4, 4, memcmp, 0);
     int num = 3500;
-    btree_debug_print(stdout, tree, true);
+    btree_debug_print(stdout, tree, NULL, NULL);
     for(int i = 1; i < num; i++){
-        printf("Insertion iteration %x\n", i);
+//        printf("Insertion iteration %x\n", i);
         btree_insert(tree, &i, &i);
 //        btree_debug_print(stdout, tree, true);
     }
@@ -196,7 +196,7 @@ void remove_tree(){
 
     int num = 3500;
     for(int i = 1; i < num; i++){
-        printf("Deletion iteration %x\n", i);
+//        printf("Deletion iteration %x\n", i);
         uint32_t value;
         if(!btree_remove(tree, &i, &value)){
             printf("Tree did not contain %x\n", i);
@@ -220,7 +220,6 @@ int main(void){
 
     create_tree();
     remove_tree();
-    exit(0);
 
     bt_alloc_ptr alloc = btree_new_ram_alloc(496);
     for(float del_chance = 0.1; del_chance < 0.6; del_chance += 0.15)

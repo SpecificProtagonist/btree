@@ -659,13 +659,13 @@ bool btree_remove(btree b_tree, const void *key, void *value_out){
 // Height is the distance to the leafs, max_height is the height of the root,
 // startc is a graph line connection character (unicode), lines_above and _below
 // are bitmask for whether to draw vertical lines at the given height
-static void debug_print(tree_param tree, FILE *stream, bt_node* node, bool print_value, int height, int max_height, char *startc, uint32_t lines_above, uint32_t lines_below){
+static void debug_print(tree_param tree, FILE *stream, bt_node* node, bt_printer_t printer, void *param, int height, int max_height, char *startc, uint32_t lines_above, uint32_t lines_below){
     for(int i = 0; i < NUM_KEYS(node)+1; i++){
         // Print child
         if(height){
             bt_node *child = LOAD(CHILDREN(node)[i]);
             uint32_t lines_row = i<(NUM_KEYS(node)+1)/2?lines_above:lines_below;
-            debug_print(tree, stream, child, print_value, height-1, max_height,
+            debug_print(tree, stream, child, printer, param, height-1, max_height,
                     i==0 ?              "╭"
                   : i==NUM_KEYS(node) ? "╰"
                   :                     "├",
@@ -699,30 +699,34 @@ static void debug_print(tree_param tree, FILE *stream, bt_node* node, bool print
                     fprintf(stream, "     ├");
             }
             // Print key & value
-            for(int j = 0; j < tree.key_size; j++)
-                fprintf(stream, "%02x", *((uint8_t*)PAIR(node, i)+j));
-            if(print_value){
-                fputs(" → ", stream);
+            if(printer){
+                printer(stream, PAIR(node, i), PAIR(node, i)+tree.key_size, param);
+            }else{
                 for(int j = 0; j < tree.key_size; j++)
-                    fprintf(stream, "%02x", *((uint8_t*)PAIR(node, i)+tree.key_size+j));
+                    fprintf(stream, "%02x", *(PAIR(node, i)+j));
+                if(tree.key_size){
+                    fputs(" → ", stream);
+                    for(int j = 0; j < tree.key_size; j++)
+                        fprintf(stream, "%02x", *(PAIR(node, i)+tree.key_size+j));
+                    fputs("\n", stream);
+                }
             }
-            fputs("\n", stream);
         }
     }
 }
 
-void btree_debug_print(FILE *stream, btree b_tree, bool print_value){
+void btree_debug_print(FILE *stream, btree b_tree, bt_printer_t print, void *param){
     btree_data *tree_data = LOAD_TREE(b_tree);
     tree_param tree = (tree_param){b_tree, tree_data->key_size, tree_data->value_size};
     if(tree_data->height >= 0){
         bt_node *root = ROOT(tree_data);
         if(NUM_KEYS(root)==0){
             bt_node *proxied_root = LOAD(CHILDREN(root)[0]);
-            debug_print(tree, stream, proxied_root, print_value,
+            debug_print(tree, stream, proxied_root, print, param,
                     tree_data->height-1, tree_data->height-1, "", 0, 0);
             UNLOAD(proxied_root);
         } else {
-            debug_print(tree, stream, root, print_value,
+            debug_print(tree, stream, root, print, param,
                     tree_data->height, tree_data->height, "", 0, 0);
         }
     }  else {

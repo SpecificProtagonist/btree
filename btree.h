@@ -93,9 +93,10 @@ bool btree_remove(btree, const void *key, void *value_out);
 void btree_delete(btree);
 
 // Prints out a textual representation of the btree (intended for a monospace font)
-// to stream. Uses hexadecimal format for keys and values,
-// only prints values if print_value; expects utf-8 locale and VT1000.
-void btree_debug_print(FILE *stream, btree, bool print_value);
+// to stream. Expects utf-8 locale and VT1000. A function to print keys/values can
+// be specified; if it is NULL, both are printed in hex format;
+typedef void (*bt_printer_t)(const FILE*, const uint8_t *key, const uint8_t *value, void *param);
+void btree_debug_print(FILE *stream, btree, bt_printer_t, void *param);
 
 
 
