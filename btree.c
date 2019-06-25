@@ -708,9 +708,9 @@ static void debug_print(tree_param tree, FILE *stream, bt_node* node, bt_printer
                     fputs(" → ", stream);
                     for(int j = 0; j < tree.key_size; j++)
                         fprintf(stream, "%02x", *(PAIR(node, i)+tree.key_size+j));
-                    fputs("\n", stream);
                 }
             }
+            fputs("\n", stream);
         }
     }
 }
