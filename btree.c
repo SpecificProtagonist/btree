@@ -352,7 +352,7 @@ static bool search(tree_param tree, const bt_node* node, const void *key, uint8_
     if(index%2==1) {
         // key is in pairs
         if(value_writeback)
-            memcpy(value_writeback, PAIR(node, index/2), (tree.key_size+tree.value_size));
+            memcpy(value_writeback, PAIR(node, index/2)+tree.key_size, tree.value_size);
         return true;
     } if(height==0)
         // leaf node & key's not a child
