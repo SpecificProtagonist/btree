@@ -29,9 +29,6 @@ bt_alloc_ptr btree_new_file_alloc(int fd, void **userdata, int userdata_size);
 // Loads the allocator created with btree_new_file_alloc() from file
 bt_alloc_ptr btree_load_file_alloc(int fd, void **userdata);
 
-// Unloads a file allocator. TODO: call automatically on exit.
-void btree_unload_file_alloc(bt_alloc_ptr file_alloc);
-
 // To load an existing btree, simply initialize the following structure
 // with the correct values. If you created the tree with compare==NULL,
 // you'll have to set compare to memcmp.

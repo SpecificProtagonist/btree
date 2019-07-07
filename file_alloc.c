@@ -37,16 +37,15 @@ typedef struct {
 typedef struct {
     struct bt_alloc base;
     int file_descriptor;
-    // The highest node id allocated so far + 1
-    bt_node_id max_allocated;
     // File size in nodes
     bt_node_id file_size;
     // Tree containing free blocks (todo: ranges instead of single blocks)
     btree free_tree;
     // Allocator of said tree
     helper_alloc free_tree_alloc;
-    // Pointer to userdata of root node, required for unload. Might remove?
-    void *root_userdata;
+    // Pointer to userdata of root node, stores
+    // the highest node id allocated so far + 1
+    bt_node_id *root_userdata;
 } file_alloc;
 
 #define MAIN_ALLOC_PTR(h_alloc) (file_alloc*)((char*)h_alloc + \
@@ -92,8 +91,8 @@ static bt_node_id new(void *this){
     file_alloc *a = (file_alloc*)this;
    
     if(btree_is_empty(a->free_tree)){
-        a->max_allocated++;
-        if(a->max_allocated > a->file_size){
+        (*(bt_node_id*)a->root_userdata)++;
+        if(*(bt_node_id*)a->root_userdata > a->file_size){
             a->file_size += ALLOC_NODES_STEP;
             //TODO: proper error handling – store errno in alloc? 
             if((errno = posix_fallocate(a->file_descriptor, 0,
@@ -102,7 +101,7 @@ static bt_node_id new(void *this){
                 exit(1);
             }
         }
-        return a->max_allocated-1;
+        return *(bt_node_id*)a->root_userdata-1;
     } else {
         bt_node_id new_node;
         btree_traverse(a->free_tree, callback_get_first_node, &new_node, false);
@@ -206,9 +205,6 @@ bt_alloc_ptr btree_new_file_alloc(int fd, void** userdata, int userdata_size){
         }
     }
 
-    // The first node is taken by the free nodes tree root
-    alloc->max_allocated = 1;
-
     // The free nodes tree will not have any values associated with the keys.
     // Also store userdata and max_allocated in the root node.
     alloc->free_tree = btree_create((bt_alloc_ptr)&alloc->free_tree_alloc,
@@ -220,6 +216,8 @@ bt_alloc_ptr btree_new_file_alloc(int fd, void** userdata, int userdata_size){
     alloc->free_tree_alloc.available_nodes_lenght = 1;
 
     alloc->root_userdata = btree_load_userdata(alloc->free_tree);
+    // The first node is taken by the free nodes tree root
+    *(bt_node_id*)alloc->root_userdata = 1;
     // Real userdate comes after max_allocated
     if(userdata)
         *userdata = (char*)btree_load_userdata(alloc->free_tree)+sizeof(bt_node_id);
@@ -240,16 +238,8 @@ bt_alloc_ptr btree_load_file_alloc(int fd, void **userdata){
 
     alloc->root_userdata = btree_load_userdata(alloc->free_tree);
     // TODO: worry about max_allocated allignment
-    alloc->max_allocated = *(bt_node_id*)alloc->root_userdata;
     if(userdata)
         *userdata = (uint8_t*)alloc->root_userdata + sizeof(bt_node_id);
 
     return (bt_alloc_ptr)alloc;
-}
-
-void btree_unload_file_alloc(bt_alloc_ptr allocator){
-    file_alloc *alloc = (file_alloc*)allocator;
-    *(bt_node_id*)alloc->root_userdata = alloc->max_allocated;
-    btree_unload_userdata(alloc->free_tree,
-                          alloc->root_userdata);
 }

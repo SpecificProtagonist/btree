@@ -90,6 +90,9 @@ void test_random(bt_alloc_ptr alloc, int attempts, int len, float del_chance){
                     correct[j] = 1-delete;
         }
 
+        btree_debug_print(stdout, tree, NULL, NULL);
+        exit(0);
+
         // Check if the tree containes each key the correct amount of times
         struct mark_occurences *result = 
             calloc(sizeof(struct mark_occurences), 1);
@@ -218,10 +221,11 @@ int main(void){
   
 //    test_serialization();
 
-    create_tree();
-    remove_tree();
+//    create_tree();
+//    remove_tree();
 
-    bt_alloc_ptr alloc = btree_new_ram_alloc(496);
+//    bt_alloc_ptr alloc = btree_new_ram_alloc(496);
+    bt_alloc_ptr alloc = btree_new_ram_alloc(100);
     for(float del_chance = 0.1; del_chance < 0.6; del_chance += 0.15)
         test_random(alloc, 3000, 250, del_chance);
 //            test_random(alloc, 400, 0.25);
