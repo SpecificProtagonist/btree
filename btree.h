@@ -13,21 +13,28 @@ typedef struct bt_alloc *bt_alloc_ptr;
 typedef uint64_t bt_node_id;
 typedef int (*bt_key_comp)(const void*, const void*, size_t);
 
+// Some operations may result in underlying IO errors, e.g. running out of memory.
+// You can set an error callback taking the errno (assuming bt_alloc_ptr alloc),
+// if you don't the library will print an error to stderr and exit.
+typedef void (*bt_error_callback)(bt_alloc_ptr, int error);
+
+
 
 // Creates a new allocator that keeps each entire trees in RAM,
 // can be freed with free().
 // TODO: recommend default node_size (requires benchmark)
-bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size);
-
+bt_alloc_ptr btree_new_ram_alloc(uint16_t node_size, bt_error_callback);
 
 // Creates a new allocator that keeps trees in a file.
 // Trees (or other data) already present there will be overriden.
 // A small amount of data, e.g a bt_node_id, can be stored alongside the allocator,
 // and a pointer to it will be stored in the location userdata points to.
-bt_alloc_ptr btree_new_file_alloc(int fd, void **userdata, int userdata_size);
+// If creation fails, NULL is returned and errno is set.
+bt_alloc_ptr btree_new_file_alloc(int fd, void **userdata, int userdata_size, bt_error_callback);
 
-// Loads the allocator created with btree_new_file_alloc() from file
-bt_alloc_ptr btree_load_file_alloc(int fd, void **userdata);
+// Loads the allocator created with btree_new_file_alloc() from file.
+// If creation fails, NULL is returned and errno is set.
+bt_alloc_ptr btree_load_file_alloc(int fd, void **userdata, bt_error_callback);
 
 // To load an existing btree, simply initialize the following structure
 // with the correct values. If you created the tree with compare==NULL,
@@ -37,6 +44,7 @@ struct btree {
     bt_node_id root;
     bt_key_comp compare;
 };
+
 
 
 

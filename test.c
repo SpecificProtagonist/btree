@@ -129,43 +129,6 @@ void test_random(bt_alloc_ptr alloc, int attempts, int len, float del_chance){
     }
 }
 
-/*void test_serialization(){
-    bt_alloc_ptr alloc = btree_new_ram_alloc(200);
-    btree tree = btree_create(alloc, 4, 4, memcmp, 0);
-
-    int num = 300;
-    for(int i = num; i --> 0;)
-        btree_insert(tree, &i, &i);
-    btree_debug_print(stdout, tree, false);
-    
-    FILE *file = fopen("file", "w+");
-
-    btree_serialize(tree, file);
-    btree_delete(tree);
-    tree = btree_deserialize(file, alloc, NULL);
-
-    btree_debug_print(stdout, tree, true);
-
-    for(int i = 1; i < num; i++){
-        printf("Deletion iteration %x\n", i);
-        uint32_t value;
-        bool removed = btree_remove(tree, &i, &value);
-        printf("Num: %d\n", num);
-        if(!removed){
-            printf("Tree did not contain %x\n", i);
-            exit(1);
-        }
-        printf("Num: %d\n", num);
-        if(value!=i){
-            printf("Value for key %x was %x\n", i, value);
-            exit(1);
-        }
-//        btree_debug_print(stdout, tree, false);
-    }
-    fclose(file);
-    exit(0);
-}*/
-
 void create_tree(){
     int file = open("stored", O_RDWR);
     if(file==-1){
@@ -173,7 +136,7 @@ void create_tree(){
         exit(1);
     }
 
-    bt_alloc_ptr alloc = btree_new_file_alloc(file, NULL, 0);
+    bt_alloc_ptr alloc = btree_new_file_alloc(file, NULL, 0, NULL);
 //    bt_alloc_ptr alloc = btree_new_ram_alloc(100);
     btree tree = btree_create(alloc, 4, 4, memcmp, 0);
     int num = 3500;
@@ -183,7 +146,6 @@ void create_tree(){
         btree_insert(tree, &i, &i);
 //        btree_debug_print(stdout, tree, true);
     }
-    btree_unload_file_alloc(alloc);
     close(file);
 }
 
@@ -194,7 +156,7 @@ void remove_tree(){
         exit(1);
     }
 
-    bt_alloc_ptr alloc = btree_load_file_alloc(file, NULL);
+    bt_alloc_ptr alloc = btree_load_file_alloc(file, NULL, NULL);
     btree tree = {alloc, 1, memcmp};
 
     int num = 3500;
@@ -225,7 +187,7 @@ int main(void){
 //    remove_tree();
 
 //    bt_alloc_ptr alloc = btree_new_ram_alloc(496);
-    bt_alloc_ptr alloc = btree_new_ram_alloc(100);
+    bt_alloc_ptr alloc = btree_new_ram_alloc(100, NULL);
     for(float del_chance = 0.1; del_chance < 0.6; del_chance += 0.15)
         test_random(alloc, 3000, 250, del_chance);
 //            test_random(alloc, 400, 0.25);

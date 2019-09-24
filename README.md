@@ -5,8 +5,8 @@ The trees may contain keys & values of arbitrary size and can exist either purel
 Usage of all functions is documented in btree.h. For example, to create a new tree in RAM:
 ```
 // An allocator simply manages memory for a btree. 
-// The argument here is the node size in bytes.
-bt_alloc_ptr alloc = btree_new_ram_alloc(512);
+// The first argument here is the node size in bytes, the second is an optional error callback.
+bt_alloc_ptr alloc = btree_new_ram_alloc(512, NULL);
 
 // Create a new tree
 // Say we want to store 32-character strings and retrieve them by integer key.
@@ -28,7 +28,7 @@ bool found = btree_get(tree, &id, &name);
 Or backed by a file (the zeros mean no extra data stored alongside):
 ```
 int fd = open("some_file", ORDWR);
-bt_alloc_ptr alloc = btree_new_file_alloc(fd, NULL, 0);
+bt_alloc_ptr alloc = btree_new_file_alloc(fd, NULL, 0, NULL);
 
 // The same file can harbor multiple trees
 btree tree_1 = btree_create(alloc, sizeof(int), 32, memcmp, 0);

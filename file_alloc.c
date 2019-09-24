@@ -43,6 +43,8 @@ typedef struct {
     btree free_tree;
     // Allocator of said tree
     helper_alloc free_tree_alloc;
+    // User-provided error callback (may be NULL)
+    bt_error_callback error_callback;
     // Pointer to userdata of root node, stores
     // the highest node id allocated so far + 1
     bt_node_id *root_userdata;
@@ -94,11 +96,15 @@ static bt_node_id new(void *this){
         (*(bt_node_id*)a->root_userdata)++;
         if(*(bt_node_id*)a->root_userdata > a->file_size){
             a->file_size += ALLOC_NODES_STEP;
-            //TODO: proper error handling – store errno in alloc? 
             if((errno = posix_fallocate(a->file_descriptor, 0,
                         a->base.node_size * a->file_size))){
-                perror("Failed to allocate file space");
-                exit(1);
+                if(a->error_callback){
+                    a->error_callback(this, errno);
+                    return 0;
+                } else {
+                    fputs("Error: Failed to grow file", stderr);
+                    exit(1);
+                }
             }
         }
         return *(bt_node_id*)a->root_userdata-1;
@@ -120,10 +126,14 @@ static void *load_from_alloc(file_alloc *alloc, bt_node_id node){
     //TODO: somewhat expensive because of page faults → cache this
     void *mem = mmap(NULL, alloc->base.node_size, PROT_READ|PROT_WRITE, MAP_SHARED,
             ((file_alloc*)alloc)->file_descriptor, node*alloc->base.node_size);
-    //TODO: proper error handling – store errno in alloc? 
     if(mem == MAP_FAILED){
-        perror("Map failed");
-        exit(1);
+        if(alloc->error_callback){
+            alloc->error_callback((bt_alloc_ptr)alloc, errno);
+            return NULL;
+        } else {
+            fputs("Error: Failed to memory map file", stderr);
+            exit(1);
+        }
     }
     return mem;
 }
@@ -152,7 +162,7 @@ static void free_node(void *this, bt_node_id node){
 
 
 // Initialize a new file_alloc as far as both creation and loading from file require
-static file_alloc *get_alloc_base(int fd){
+static file_alloc *get_alloc_base(int fd, bt_error_callback error_callback){
     // The size of each allocation. A page is usually 4kb in size.
     // Maybe instead make this a compile option?
     int node_size = getpagesize();
@@ -172,7 +182,15 @@ static file_alloc *get_alloc_base(int fd){
     // Store the file size, else every allocation (when the free nodes tree is empty)
     // would require calling fstat
     struct stat filestat;
-    fstat(fd, &filestat);
+    if(fstat(fd, &filestat)){
+        if(error_callback){
+            error_callback(NULL, errno);
+            return NULL;
+        } else {
+            fputs("Error: Failed to stat file", stderr);
+            exit(1);
+        }
+    }
     alloc->file_size = filestat.st_size / node_size;
 
     // Construct allocator for the free nodes tree,
@@ -186,22 +204,29 @@ static file_alloc *get_alloc_base(int fd){
     };
     alloc->free_tree_alloc.freed_nodes_lenght = 0;
 
+    alloc->error_callback = error_callback;
+
     return alloc;
 }
 
 
-bt_alloc_ptr btree_new_file_alloc(int fd, void** userdata, int userdata_size){
+bt_alloc_ptr btree_new_file_alloc(int fd, void** userdata, int userdata_size, bt_error_callback error_callback){
     // Basic init shared with btree_load_file_alloc
-    file_alloc *alloc = get_alloc_base(fd);
+    file_alloc *alloc = get_alloc_base(fd, error_callback);
     
     // Make sure the file has minimum enough size for the root
-    // TODO: proper error handling – store errno in alloc? 
     if(!alloc->file_size) {
         alloc->file_size = 2;
         if((errno = posix_fallocate(fd, 0,
-                    alloc->base.node_size * alloc->file_size))){
-            perror("Failed to allocate file space");
-            exit(1);
+                    alloc->base.node_size * alloc->file_size)))
+        {
+            if(error_callback){
+                error_callback(NULL, errno);
+                return NULL;
+            } else {
+                fputs("Error: Failed to allocate file\n", stderr);
+                exit(1);
+            }
         }
     }
 
@@ -227,8 +252,8 @@ bt_alloc_ptr btree_new_file_alloc(int fd, void** userdata, int userdata_size){
 
 
 
-bt_alloc_ptr btree_load_file_alloc(int fd, void **userdata){
-    file_alloc *alloc = get_alloc_base(fd);
+bt_alloc_ptr btree_load_file_alloc(int fd, void **userdata, bt_error_callback error_callback){
+    file_alloc *alloc = get_alloc_base(fd, error_callback);
 
     alloc->free_tree = (btree){
         .alloc = (bt_alloc_ptr)&alloc->free_tree_alloc,

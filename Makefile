@@ -1,14 +1,6 @@
-# OPTIONS
-# Can also be set from the commandline, e.g. make MAX_KEYS=420
-# Datatype of keys & values. If you override them, make sure to #define them in your code.
-#TODO: test types with spaces, e.g. 'short int'
-KEY_TYPE=uint32_t
-VALUE_TYPE=void*
-
 CC=gcc
 
-DEFINES = BT_KEY_TYPE=$(KEY_TYPE) BT_VALUE_TYPE=$(VALUE_TYPE)
-CFLAGS = -g -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -pedantic-errors $(addprefix -D,$(DEFINES))
+CFLAGS = -g -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -pedantic-errors
 LIBOBJ = btree.o ram_alloc.o file_alloc.o
 
 # Build static library, there's no reason for a shared lib
